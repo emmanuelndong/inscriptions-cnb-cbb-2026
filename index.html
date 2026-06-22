@@ -91,6 +91,10 @@
     outline:none;border-color:var(--violet);box-shadow:0 0 0 3px var(--violet-soft);
   }
   textarea{resize:vertical;min-height:64px}
+  .dob{display:flex;gap:8px}
+  .dob select{flex:1}
+  .dob .dob-j{flex:0 0 26%}
+  .dob .dob-a{flex:0 0 30%}
   .invalid input,.invalid select,.invalid textarea{border-color:var(--danger);background:#fef4f3}
   .errmsg{color:var(--danger);font-size:11.5px;display:none}
   .invalid .errmsg{display:block}
@@ -270,7 +274,14 @@
         <div class="grid">
           <div class="field"><label>Nom <span class="req">*</span></label><input name="nom" required><span class="errmsg">Champ requis</span></div>
           <div class="field"><label>Prénoms <span class="req">*</span></label><input name="prenoms" required><span class="errmsg">Champ requis</span></div>
-          <div class="field"><label>Date de naissance <span class="req">*</span></label><input type="date" name="naissance" required><span class="errmsg">Champ requis</span></div>
+          <div class="field col-2"><label>Date de naissance <span class="req">*</span></label>
+            <div class="dob">
+              <select name="dobJour" class="dob-j"><option value="">Jour</option></select>
+              <select name="dobMois" class="dob-m"><option value="">Mois</option></select>
+              <select name="dobAnnee" class="dob-a"><option value="">Année</option></select>
+            </div>
+            <input type="hidden" name="naissance">
+            <span class="errmsg">Champ requis</span></div>
           <div class="field"><label>Lieu de naissance <span class="req">*</span></label><input name="lieuNaissance" required><span class="errmsg">Champ requis</span></div>
           <div class="field"><label>Niveau d'étude <span class="req">*</span></label><input name="niveau" required placeholder="Ex. Licence, BFEM…"><span class="errmsg">Champ requis</span></div>
           <div class="field"><label>Religion <span class="req">*</span></label><input name="religion" required><span class="errmsg">Champ requis</span></div>
@@ -297,8 +308,8 @@
           <div class="field"><label>District <span class="req">*</span></label><select name="district" required disabled><option value="">— Choisir la région d'abord —</option></select><span class="errmsg">Champ requis</span></div>
           <div class="field"><label>Groupe <span class="req">*</span></label><select name="groupe" required disabled><option value="">— Choisir le district d'abord —</option></select><span class="errmsg">Champ requis</span></div>
           <div class="field"><label>Fonction actuelle <span class="req">*</span></label><input name="fonction" required><span class="errmsg">Champ requis</span></div>
-          <div class="field"><label>Date d'entrée dans le scoutisme <span class="req">*</span></label><input type="date" name="entree" required><span class="errmsg">Champ requis</span></div>
-          <div class="field"><label>Date et lieu de promesse <span class="req">*</span></label><input name="promesse" required placeholder="Ex. 12/05/2018 à Mbour"><span class="errmsg">Champ requis</span></div>
+          <div class="field"><label>Année d'entrée dans le scoutisme <span class="req">*</span></label><select name="entree" class="year-sel" required><option value="">— Année —</option></select><span class="errmsg">Champ requis</span></div>
+          <div class="field"><label>Année de promesse <span class="req">*</span></label><select name="promesse" class="year-sel" required><option value="">— Année —</option></select><span class="errmsg">Champ requis</span></div>
         </div>
       </section>
 
@@ -535,17 +546,18 @@ function validate(){
   document.querySelectorAll('#stagesStruct .st-req').forEach(el=>{
     const bad=!el.value.trim();el.classList.toggle('bad',bad);if(bad)ok=false;
   });
-  // Âge minimum : 20 ans révolus à la date du camp
-  const naisEl=f.elements['naissance'];const naisField=naisEl.closest('.field');
-  const naisErr=naisField.querySelector('.errmsg');
-  if(naisEl.value.trim()){
-    const age=ageAt(naisEl.value,AGE_REF_DATE);
-    if(age<MIN_AGE){
-      naisField.classList.add('invalid');
-      naisErr.textContent=`Le candidat doit atteindre ${MIN_AGE} ans en 2026 (âge au ${AGE_REF_LABEL} : ${age} ans).`;
-      ok=false;
-    }else{ naisErr.textContent='Champ requis'; }
-  }else{ naisErr.textContent='Champ requis'; }
+  // Date de naissance (3 menus Jour / Mois / Année)
+  syncDob();
+  const dob=f.elements['naissance'].value;
+  const dobField=document.querySelector('.dob').closest('.field');
+  const dobErr=dobField.querySelector('.errmsg');
+  if(!dob){ dobField.classList.add('invalid'); dobErr.textContent='Champ requis'; ok=false; }
+  else{
+    const age=ageAt(dob,AGE_REF_DATE);
+    if(age<MIN_AGE){ dobField.classList.add('invalid');
+      dobErr.textContent=`Le candidat doit atteindre ${MIN_AGE} ans en 2026 (âge au ${AGE_REF_LABEL} : ${age} ans).`; ok=false; }
+    else dobField.classList.remove('invalid');
+  }
   return ok;
 }
 const MIN_AGE=20, AGE_REF_DATE='2026-12-31', AGE_REF_LABEL='31/12/2026';
@@ -555,6 +567,38 @@ function ageAt(birthStr,refStr){
   const m=r.getMonth()-b.getMonth();
   if(m<0||(m===0&&r.getDate()<b.getDate()))a--;
   return a;
+}
+
+/* ---------- date de naissance : 3 menus ---------- */
+const MOIS=['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+const MAX_BIRTH_YEAR=2026-MIN_AGE; // 2006 : dernière année éligible
+function initDob(){
+  const j=document.querySelector('.dob-j'),m=document.querySelector('.dob-m'),a=document.querySelector('.dob-a');
+  j.innerHTML='<option value="">Jour</option>'+Array.from({length:31},(_,i)=>`<option>${i+1}</option>`).join('');
+  m.innerHTML='<option value="">Mois</option>'+MOIS.map((n,i)=>`<option value="${i+1}">${n}</option>`).join('');
+  let opts='<option value="">Année</option>';
+  for(let y=MAX_BIRTH_YEAR;y>=1940;y--) opts+=`<option>${y}</option>`;
+  a.innerHTML=opts;
+  // menus Année pour entrée scoutisme + promesse
+  let yopts='<option value="">— Année —</option>';
+  for(let y=2026;y>=1950;y--) yopts+=`<option>${y}</option>`;
+  document.querySelectorAll('.year-sel').forEach(s=>{s.innerHTML=yopts;});
+}
+function dobValue(){
+  const j=document.querySelector('.dob-j').value, m=document.querySelector('.dob-m').value, a=document.querySelector('.dob-a').value;
+  if(!j||!m||!a) return '';
+  return `${a}-${String(m).padStart(2,'0')}-${String(j).padStart(2,'0')}`;
+}
+function syncDob(){
+  const v=dobValue();
+  document.querySelector('input[name="naissance"]').value=v;
+  const field=document.querySelector('.dob').closest('.field'),err=field.querySelector('.errmsg');
+  if(v){
+    const age=ageAt(v,AGE_REF_DATE);
+    if(age<MIN_AGE){field.classList.add('invalid');err.textContent=`Le candidat doit atteindre ${MIN_AGE} ans en 2026 (âge au ${AGE_REF_LABEL} : ${age} ans).`;}
+    else{field.classList.remove('invalid');err.textContent='Champ requis';}
+  }
+  return v;
 }
 
 /* ---------- render list ---------- */
@@ -618,7 +662,7 @@ function ficheHTML(r){
     <table class="ftable">
       ${row('Région',r.region)}${row('District',r.district)}</tr>
       ${row('Groupe',r.groupe)}${row('Fonction actuelle',r.fonction)}</tr>
-      ${row("Date d'entrée scoutisme",r.entree)}${row('Date & lieu de promesse',r.promesse)}</tr>
+      ${row("Année d'entrée",r.entree)}${row('Année de promesse',r.promesse)}</tr>
     </table>
     <table class="ftable stages">
       <tr><td class="sh">Stages de formation structurée</td><td class="sh">Date et lieu de stage</td><td class="sh">Structure organisatrice</td></tr>
@@ -681,7 +725,7 @@ function buildRecap(r){
     <div class="recap-grp"><h4>Informations scoutes</h4>
       ${rLine('Région',r.region)}${rLine('District',r.district)}
       ${rLine('Groupe',r.groupe)}${rLine('Fonction',r.fonction)}
-      ${rLine('Entrée scoutisme',fmtDate(r.entree))}${rLine('Promesse',r.promesse)}
+      ${rLine("Année d'entrée",r.entree)}${rLine('Année de promesse',r.promesse)}
     </div>
     <div class="recap-grp"><h4>Stages de formation</h4>
       ${stages.length?stages.map(s=>`<div class="r"><span>${esc(s)}</span></div>`).join(''):'<div class="r"><span>—</span></div>'}
@@ -699,7 +743,7 @@ function recapText(r){
   add('Taille (tenue de camp)',r.taille);
   add('Problèmes médicaux',r.medical);add("Contact d'urgence",r.urgence);L.push('');
   add('Région',r.region);add('District',r.district);add('Groupe',r.groupe);
-  add('Fonction',r.fonction);add('Entrée scoutisme',fmtDate(r.entree));add('Promesse',r.promesse);L.push('');
+  add('Fonction',r.fonction);add("Année d'entrée",r.entree);add('Année de promesse',r.promesse);L.push('');
   L.push('Stages de formation :');
   [...r.struct.filter(s=>s.date||s.org),...r.autre].forEach(s=>L.push(` - ${s.intitule||'Stage'} : ${s.date||'—'} / ${s.org||'—'}`));
   return L.join('\n');
@@ -720,7 +764,7 @@ function exportCsv(){
     ['fixe','Tél fixe'],['profession','Profession'],['societe','Société/École'],['cni','N° CNI/Passeport'],
     ['cniDate','Date établissement'],['taille','Taille tenue'],['medical','Problèmes médicaux'],['urgence','Contact urgence'],
     ['region','Région'],['district','District'],['groupe','Groupe'],['fonction','Fonction'],
-    ['entree','Entrée scoutisme'],['promesse','Promesse']];
+    ['entree',"Année d'entrée"],['promesse','Année de promesse']];
   const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
   const head=cols.map(c=>q(c[1])).concat(['Stages structurés','Stages libres'].map(q)).join(';');
   const rows=registrations.map(r=>{
@@ -753,13 +797,7 @@ document.querySelectorAll('input[name="camp"]').forEach(r=>r.addEventListener('c
   rest.classList.add('show');
   rest.scrollIntoView({behavior:'smooth',block:'start'});
 }));
-document.querySelector('input[name="naissance"]').addEventListener('change',e=>{
-  const field=e.target.closest('.field'),err=field.querySelector('.errmsg');
-  if(!e.target.value)return;
-  const age=ageAt(e.target.value,AGE_REF_DATE);
-  if(age<MIN_AGE){field.classList.add('invalid');err.textContent=`Le candidat doit atteindre ${MIN_AGE} ans en 2026 (âge au ${AGE_REF_LABEL} : ${age} ans).`;}
-  else{field.classList.remove('invalid');err.textContent='Champ requis';}
-});
+document.querySelectorAll('.dob-j,.dob-m,.dob-a').forEach(s=>s.addEventListener('change',syncDob));
 document.getElementById('resetBtn').onclick=()=>{
   document.getElementById('form').reset();
   document.querySelectorAll('.invalid').forEach(e=>e.classList.remove('invalid'));
@@ -767,7 +805,7 @@ document.getElementById('resetBtn').onclick=()=>{
   document.getElementById('rest').classList.remove('show');
   document.getElementById('stagesAutre').innerHTML='';addAutre();
   buildStruct();
-  initDecoupage();
+  initDecoupage();initDob();
   window.scrollTo({top:0,behavior:'smooth'});
 };
 document.getElementById('printCurrent').onclick=()=>{ if(validate())printFiches([readForm()]); else toast('Complétez les champs requis avant l\'aperçu'); };
@@ -801,7 +839,7 @@ document.getElementById('modalPdf').onclick=()=>{if(recapReg)printFiches([recapR
 
 /* ---------- init ---------- */
 (async()=>{
-  buildStruct();addAutre();initDecoupage();
+  buildStruct();addAutre();initDecoupage();initDob();
   registrations=await store.load();render();
 })();
 </script>

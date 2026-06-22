@@ -168,7 +168,7 @@ function ficheHTML(r){
     <table class="ftable">
       ${row('Région',r.region)}${row('District',r.district)}</tr>
       ${row('Groupe',r.groupe)}${row('Fonction actuelle',r.fonction)}</tr>
-      ${row("Date d'entrée scoutisme",r.entree)}${row('Date & lieu de promesse',r.promesse)}</tr>
+      ${row("Année d'entrée",r.entree)}${row('Année de promesse',r.promesse)}</tr>
     </table>
     <table class="ftable stages">
       <tr><td class="sh">Stages de formation structurée</td><td class="sh">Date et lieu de stage</td><td class="sh">Structure organisatrice</td></tr>
@@ -276,7 +276,7 @@ function exportCsv(){
     ['adresse','Adresse'],['email','E-mail'],['mobile','Mobile'],['fixe','Tél fixe'],['profession','Profession'],
     ['societe','Société/École'],['cni','CNI/Passeport'],['cni_date','Date établissement'],['taille','Taille tenue'],['medical','Médical'],
     ['urgence','Contact urgence'],['region','Région'],['district','District'],['groupe','Groupe'],
-    ['fonction','Fonction'],['entree','Entrée scoutisme'],['promesse','Promesse']];
+    ['fonction','Fonction'],['entree',"Année d'entrée"],['promesse','Année de promesse']];
   const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
   const head=cols.map(c=>q(c[1])).concat([q('Stages structurés'),q('Stages libres')]).join(';');
   const body=rows.map(r=>{
