@@ -294,6 +294,7 @@
           <div class="field"><label>N° Carte d'identité / Passeport <span class="req">*</span></label><input name="cni" required><span class="errmsg">Champ requis</span></div>
           <div class="field"><label>Date d'établissement de la pièce <span class="req">*</span></label><input type="date" name="cniDate" required><span class="errmsg">Champ requis</span></div>
           <div class="field"><label>Taille (tenue de camp) <span class="req">*</span></label><select name="taille" required><option value="">— Choisir —</option><option>S</option><option>M</option><option>L</option><option>XL</option><option>XXL</option><option>XXXL</option></select><span class="errmsg">Champ requis</span></div>
+          <div class="field" id="assuranceField"><label>N° d'assurance <span class="req">*</span></label><input name="assurance" required placeholder="Votre numéro d'assuré SDS"><span class="errmsg">Champ requis</span></div>
           <div class="field col-2"><label>Problèmes médicaux <span class="req">*</span></label><textarea name="medical" required placeholder="Indiquez « RAS » si aucun problème médical"></textarea><span class="errmsg">Champ requis (« RAS » si néant)</span></div>
           <div class="field col-2"><label>Personne à contacter en cas d'urgence <span class="req">*</span></label><textarea name="urgence" required placeholder="Prénom & nom, lien, adresse, téléphone"></textarea><span class="errmsg">Champ requis</span></div>
         </div>
@@ -411,6 +412,20 @@ const KEY='cnb_cbb_2026_inscriptions';
    Laisse vide ("") pour fonctionner uniquement en local. */
 const SHEET_ENDPOINT="/api/submit";
 
+async function verifyInsurance(reg){
+  try{
+    const res=await fetch('/api/verify',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({assurance:reg.assurance,nom:reg.nom,prenoms:reg.prenoms,naissance:reg.naissance})
+    });
+    return await res.json();
+  }catch(err){
+    // si notre propre API est injoignable, on ne bloque pas (le réseau empêcherait de toute façon l'envoi)
+    return {ok:true,note:'network'};
+  }
+}
+
 async function sendToSheet(reg){
   if(!SHEET_ENDPOINT) return {skipped:true};
   try{
@@ -521,7 +536,7 @@ function readForm(){
     nom:g('nom'),prenoms:g('prenoms'),naissance:g('naissance'),lieuNaissance:g('lieuNaissance'),
     niveau:g('niveau'),religion:g('religion'),adresse:g('adresse'),email:g('email'),
     mobile:g('mobile'),fixe:g('fixe'),profession:g('profession'),societe:g('societe'),
-    cni:g('cni'),cniDate:g('cniDate'),taille:g('taille'),medical:g('medical'),urgence:g('urgence'),
+    cni:g('cni'),cniDate:g('cniDate'),taille:g('taille'),assurance:g('assurance'),medical:g('medical'),urgence:g('urgence'),
     region:g('region'),district:g('district'),groupe:g('groupe'),fonction:g('fonction'),
     entree:g('entree'),promesse:g('promesse'),struct,autre
   };
@@ -654,7 +669,7 @@ function ficheHTML(r){
       ${row('Téléphone fixe',r.fixe)}${row('Mobile',r.mobile)}</tr>
       ${row('Profession',r.profession)}${row('Société / École',r.societe)}</tr>
       ${row('N° CNI / Passeport',r.cni)}${row("Date d'établissement",r.cniDate)}</tr>
-      ${row('Taille (tenue de camp)',r.taille)}<td colspan="2"></td></tr>
+      ${row('Taille (tenue de camp)',r.taille)}${row("N° d'assurance",r.assurance)}</tr>
       <tr><td class="k">Problèmes médicaux</td><td colspan="3">${esc(r.medical)||'&nbsp;'}</td></tr>
       <tr><td class="k">Contact d'urgence</td><td colspan="3">${esc(r.urgence)||'&nbsp;'}</td></tr>
     </table>
@@ -719,6 +734,7 @@ function buildRecap(r){
       ${rLine('Profession',r.profession)}${rLine('Société / École',r.societe)}
       ${rLine('CNI / Passeport',`${r.cni} (du ${fmtDate(r.cniDate)})`)}
       ${rLine('Taille (tenue de camp)',r.taille)}
+      ${rLine("N° d'assurance",r.assurance)}
       ${rLine('Problèmes médicaux',r.medical)}
       ${rLine("Contact d'urgence",r.urgence)}
     </div>
@@ -741,6 +757,7 @@ function recapText(r){
   add('Profession',r.profession);add('Société / École',r.societe);
   add('CNI / Passeport',`${r.cni} (du ${fmtDate(r.cniDate)})`);
   add('Taille (tenue de camp)',r.taille);
+  add("N° d'assurance",r.assurance);
   add('Problèmes médicaux',r.medical);add("Contact d'urgence",r.urgence);L.push('');
   add('Région',r.region);add('District',r.district);add('Groupe',r.groupe);
   add('Fonction',r.fonction);add("Année d'entrée",r.entree);add('Année de promesse',r.promesse);L.push('');
@@ -762,7 +779,7 @@ function exportCsv(){
   const cols=[['camp','Camp demandé'],['nom','Nom'],['prenoms','Prénoms'],['naissance','Date naissance'],['lieuNaissance','Lieu naissance'],
     ['niveau','Niveau étude'],['religion','Religion'],['adresse','Adresse'],['email','E-mail'],['mobile','Mobile'],
     ['fixe','Tél fixe'],['profession','Profession'],['societe','Société/École'],['cni','N° CNI/Passeport'],
-    ['cniDate','Date établissement'],['taille','Taille tenue'],['medical','Problèmes médicaux'],['urgence','Contact urgence'],
+    ['cniDate','Date établissement'],['taille','Taille tenue'],['assurance',"N° d'assurance"],['medical','Problèmes médicaux'],['urgence','Contact urgence'],
     ['region','Région'],['district','District'],['groupe','Groupe'],['fonction','Fonction'],
     ['entree',"Année d'entrée"],['promesse','Année de promesse']];
   const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
@@ -821,6 +838,24 @@ document.getElementById('form').addEventListener('submit',async e=>{
   if(!validate()){toast('Veuillez corriger les champs en rouge');
     document.querySelector('.invalid, .st-req.bad')?.scrollIntoView({behavior:'smooth',block:'center'});return;}
   const reg=readForm();
+
+  // vérification d'assurance (bloque si non assuré)
+  const submitBtn=e.target.querySelector('[type="submit"]');
+  if(submitBtn){submitBtn.disabled=true;}
+  toast('Vérification de l\u2019assurance…');
+  const ver=await verifyInsurance(reg);
+  if(submitBtn){submitBtn.disabled=false;}
+  if(ver && ver.ok===false){
+    const af=document.getElementById('assuranceField');
+    af.classList.add('invalid');
+    af.querySelector('.errmsg').textContent = ver.reason==='mismatch'
+      ? 'Le numéro existe mais ne correspond pas à votre identité.'
+      : 'Vous n\u2019apparaissez pas dans la base des assurés.';
+    af.scrollIntoView({behavior:'smooth',block:'center'});
+    toast('Inscription bloquée : assurance non vérifiée');
+    return;
+  }
+
   registrations.push(reg);
   await store.save(registrations);render();
   showRecap(reg);

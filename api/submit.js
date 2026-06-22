@@ -15,12 +15,13 @@ async function ensureTable() {
     created_at TIMESTAMPTZ DEFAULT now(),
     camp TEXT, nom TEXT, prenoms TEXT, naissance TEXT, lieu_naissance TEXT,
     niveau TEXT, religion TEXT, adresse TEXT, email TEXT, mobile TEXT, fixe TEXT,
-    profession TEXT, societe TEXT, cni TEXT, cni_date TEXT, taille TEXT, medical TEXT, urgence TEXT,
+    profession TEXT, societe TEXT, cni TEXT, cni_date TEXT, taille TEXT, assurance TEXT, medical TEXT, urgence TEXT,
     region TEXT, district TEXT, groupe TEXT, fonction TEXT, entree TEXT, promesse TEXT,
     struct JSONB, autre JSONB
   )`;
   // au cas où la table existe déjà sans la colonne taille
   await sql`ALTER TABLE inscriptions ADD COLUMN IF NOT EXISTS taille TEXT`;
+  await sql`ALTER TABLE inscriptions ADD COLUMN IF NOT EXISTS assurance TEXT`;
 }
 
 export default async function handler(req, res) {
@@ -42,12 +43,12 @@ export default async function handler(req, res) {
     const rows = await sql`
       INSERT INTO inscriptions
         (camp, nom, prenoms, naissance, lieu_naissance, niveau, religion, adresse, email,
-         mobile, fixe, profession, societe, cni, cni_date, taille, medical, urgence,
+         mobile, fixe, profession, societe, cni, cni_date, taille, assurance, medical, urgence,
          region, district, groupe, fonction, entree, promesse, struct, autre)
       VALUES
         (${d.camp}, ${d.nom}, ${d.prenoms}, ${d.naissance}, ${d.lieuNaissance}, ${d.niveau},
          ${d.religion}, ${d.adresse}, ${d.email}, ${d.mobile}, ${d.fixe}, ${d.profession},
-         ${d.societe}, ${d.cni}, ${d.cniDate}, ${d.taille}, ${d.medical}, ${d.urgence}, ${d.region},
+         ${d.societe}, ${d.cni}, ${d.cniDate}, ${d.taille}, ${d.assurance}, ${d.medical}, ${d.urgence}, ${d.region},
          ${d.district}, ${d.groupe}, ${d.fonction}, ${d.entree}, ${d.promesse},
          ${JSON.stringify(d.struct || [])}, ${JSON.stringify(d.autre || [])})
       RETURNING id`;

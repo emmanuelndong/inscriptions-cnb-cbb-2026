@@ -52,6 +52,22 @@
   .empty{padding:40px;text-align:center;color:var(--muted)}
   .muted{color:var(--muted);font-size:12px}
 
+  /* dashboard charts */
+  .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-bottom:18px}
+  .chart-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px}
+  .chart-card h3{margin:0 0 14px;font-size:12px;color:var(--purple);font-family:Marcellus,serif;font-weight:400;text-transform:uppercase;letter-spacing:.5px}
+  .donutwrap{display:flex;align-items:center;gap:16px}
+  .legend{display:flex;flex-direction:column;gap:7px;font-size:12.5px;flex:1}
+  .legend .li{display:flex;align-items:center;gap:8px;justify-content:space-between}
+  .legend .li .lab{display:flex;align-items:center;gap:8px}
+  .legend .dot{width:11px;height:11px;border-radius:3px;display:inline-block;flex:0 0 auto}
+  .legend .num{font-weight:600;color:#433c52;font-variant-numeric:tabular-nums}
+  .barrow{display:flex;align-items:center;gap:9px;margin:6px 0;font-size:12.5px}
+  .blabel{width:96px;flex:0 0 auto;color:#433c52;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .btrack{flex:1;background:#f0ecf6;border-radius:6px;height:15px;overflow:hidden}
+  .bfill{display:block;height:100%;border-radius:6px;min-width:2px;transition:width .4s}
+  .bval{width:34px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+
   /* ================= PRINT / FICHE OFFICIELLE ================= */
   #print-root{display:none}
   @media print{
@@ -116,6 +132,7 @@
 <!-- DASHBOARD -->
 <div id="dashView" class="wrap" style="display:none">
   <div class="stats" id="stats"></div>
+  <div class="charts" id="charts"></div>
   <div class="toolbar">
     <div class="f"><label>Camp</label><select id="fCamp"><option value="">Tous</option></select></div>
     <div class="f"><label>Région</label><select id="fRegion"><option value="">Toutes</option></select></div>
@@ -162,7 +179,7 @@ function ficheHTML(r){
       ${row('Téléphone fixe',r.fixe)}${row('Mobile',r.mobile)}</tr>
       ${row('Profession',r.profession)}${row('Société / École',r.societe)}</tr>
       ${row('N° CNI / Passeport',r.cni)}${row("Date d'établissement",r.cniDate)}</tr>
-      ${row('Taille (tenue de camp)',r.taille)}<td colspan="2"></td></tr>
+      ${row('Taille (tenue de camp)',r.taille)}${row("N° d'assurance",r.assurance)}</tr>
       <tr><td class="k">Problèmes médicaux</td><td colspan="3">${esc(r.medical)||'&nbsp;'}</td></tr>
       <tr><td class="k">Contact d'urgence</td><td colspan="3">${esc(r.urgence)||'&nbsp;'}</td></tr>
     </table>
@@ -216,7 +233,7 @@ let ALL=[];
 const rowToReg=r=>({
   camp:r.camp,nom:r.nom,prenoms:r.prenoms,naissance:r.naissance,lieuNaissance:r.lieu_naissance,
   niveau:r.niveau,religion:r.religion,adresse:r.adresse,email:r.email,mobile:r.mobile,fixe:r.fixe,
-  profession:r.profession,societe:r.societe,cni:r.cni,cniDate:r.cni_date,taille:r.taille,medical:r.medical,urgence:r.urgence,
+  profession:r.profession,societe:r.societe,cni:r.cni,cniDate:r.cni_date,taille:r.taille,assurance:r.assurance,medical:r.medical,urgence:r.urgence,
   region:r.region,district:r.district,groupe:r.groupe,fonction:r.fonction,entree:r.entree,promesse:r.promesse,
   struct:Array.isArray(r.struct)?r.struct:(r.struct?JSON.parse(r.struct):[]),
   autre:Array.isArray(r.autre)?r.autre:(r.autre?JSON.parse(r.autre):[])
@@ -232,7 +249,7 @@ async function load(){
     document.getElementById('loginView').style.display='none';
     document.getElementById('dashView').style.display='block';
     document.getElementById('logoutTop').style.display='inline-flex';
-    buildFilters(); render();
+    buildFilters(); renderCharts(); render();
   }catch(err){ alert('Erreur de chargement : '+err); }
 }
 
@@ -271,13 +288,54 @@ function render(){
     </tr>`).join('')}</tbody></table>`;
   document.querySelectorAll('.tbtn[data-i]').forEach(b=>b.onclick=()=>printFiches([rowToReg(ALL[+b.dataset.i])]));
 }
+function countBy(key){const m={};ALL.forEach(r=>{const k=(r[key]||'—');m[k]=(m[k]||0)+1;});return m;}
+function donutSVG(segs){
+  const total=segs.reduce((s,x)=>s+x.value,0);
+  const r=54,C=2*Math.PI*r;let off=0;
+  const arcs=total===0?'':segs.filter(s=>s.value>0).map(s=>{
+    const len=C*s.value/total;
+    const c=`<circle cx="70" cy="70" r="${r}" fill="none" stroke="${s.color}" stroke-width="20" stroke-dasharray="${len.toFixed(2)} ${(C-len).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 70 70)"/>`;
+    off+=len;return c;
+  }).join('');
+  const ring=`<circle cx="70" cy="70" r="${r}" fill="none" stroke="#f0ecf6" stroke-width="20"/>`;
+  return `<svg viewBox="0 0 140 140" width="132" height="132">${ring}${arcs}<text x="70" y="66" text-anchor="middle" font-size="24" font-weight="700" fill="#4A2370">${total}</text><text x="70" y="84" text-anchor="middle" font-size="10" fill="#6A6478">inscrits</text></svg>`;
+}
+function barList(items){
+  const max=Math.max(1,...items.map(i=>i.value));
+  return items.map(i=>`<div class="barrow"><span class="blabel" title="${esc(i.label)}">${esc(i.label)}</span><span class="btrack"><span class="bfill" style="width:${(i.value/max*100).toFixed(1)}%;background:${i.color||'var(--violet)'}"></span></span><span class="bval">${i.value}</span></div>`).join('');
+}
+function renderCharts(){
+  const el=document.getElementById('charts');
+  if(!ALL.length){el.innerHTML='';return;}
+  // par camp (anneau)
+  const camps=['CNB Jaune','CNB Vert','CNB Rouge','CBB'];
+  const campSeg=camps.map(c=>({label:c,value:ALL.filter(r=>r.camp===c).length,color:campColor(c)}));
+  const legend=campSeg.map(s=>`<div class="li"><span class="lab"><span class="dot" style="background:${s.color}"></span>${s.label}</span><span class="num">${s.value}</span></div>`).join('');
+  // par taille (barres) — utile pour les tenues
+  const order=['S','M','L','XL','XXL','XXXL'];
+  const tc=countBy('taille');
+  const tailleItems=order.map(t=>({label:t,value:tc[t]||0,color:'var(--gold)'}));
+  // par région (barres)
+  const rc=countBy('region');
+  const regItems=Object.entries(rc).sort((a,b)=>b[1]-a[1]).map(([k,v])=>({label:k,value:v,color:'var(--violet)'}));
+  // par district (top 8)
+  const dc=countBy('district');
+  const distItems=Object.entries(dc).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v])=>({label:k,value:v,color:'var(--green)'}));
+
+  el.innerHTML=
+    `<div class="chart-card"><h3>Répartition par camp</h3><div class="donutwrap">${donutSVG(campSeg)}<div class="legend">${legend}</div></div></div>`+
+    `<div class="chart-card"><h3>Tailles de tenue</h3>${barList(tailleItems)}</div>`+
+    `<div class="chart-card"><h3>Par région</h3>${barList(regItems)}</div>`+
+    `<div class="chart-card"><h3>Top districts</h3>${barList(distItems)}</div>`;
+}
+
 function exportCsv(){
   const rows=filtered();
   if(!rows.length){alert('Aucune inscription à exporter');return;}
   const cols=[['created_at','Horodatage'],['camp','Camp'],['nom','Nom'],['prenoms','Prénoms'],
     ['naissance','Date naissance'],['lieu_naissance','Lieu naissance'],['niveau','Niveau'],['religion','Religion'],
     ['adresse','Adresse'],['email','E-mail'],['mobile','Mobile'],['fixe','Tél fixe'],['profession','Profession'],
-    ['societe','Société/École'],['cni','CNI/Passeport'],['cni_date','Date établissement'],['taille','Taille tenue'],['medical','Médical'],
+    ['societe','Société/École'],['cni','CNI/Passeport'],['cni_date','Date établissement'],['taille','Taille tenue'],['assurance',"N° d'assurance"],['medical','Médical'],
     ['urgence','Contact urgence'],['region','Région'],['district','District'],['groupe','Groupe'],
     ['fonction','Fonction'],['entree',"Année d'entrée"],['promesse','Année de promesse']];
   const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
