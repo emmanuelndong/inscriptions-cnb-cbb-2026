@@ -33,6 +33,7 @@
   .btn.primary{background:var(--purple);color:#fff}.btn.primary:hover{background:#3a1b59}
   .btn.ghost{background:#fff;border:1px solid var(--line);color:#433c52}.btn.ghost:hover{border-color:var(--violet);color:var(--violet)}
   .btn.danger{background:#fff;border:1px solid #e7b7b1;color:var(--danger)}.btn.danger:hover{background:var(--danger);color:#fff;border-color:var(--danger)}
+  .btn:disabled{opacity:.45;cursor:not-allowed;pointer-events:none}
   .err{color:var(--danger);font-size:12.5px;margin-top:10px;display:none}
 
   /* dashboard */
@@ -143,7 +144,7 @@
       <button class="btn ghost" id="refreshBtn">↻ Actualiser</button>
       <button class="btn ghost" id="csvBtn">⬇️ CSV</button>
       <button class="btn ghost" id="printAllBtn">🖨️ Imprimer (filtré)</button>
-      <button class="btn danger" id="clearBtn" title="Supprime toutes les inscriptions (phase de test)">🗑️ Vider la base</button>
+      <button class="btn danger" id="clearBtn" disabled title="Désactivé">🗑️ Vider la base</button>
     </div>
   </div>
   <div id="tableWrap"></div>
