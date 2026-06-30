@@ -871,23 +871,6 @@ document.getElementById('form').addEventListener('submit',async e=>{
     document.querySelector('.invalid, .st-req.bad')?.scrollIntoView({behavior:'smooth',block:'center'});return;}
   const reg=readForm();
 
-  // vérification d'assurance (bloque si non assuré)
-  const submitBtn=e.target.querySelector('[type="submit"]');
-  if(submitBtn){submitBtn.disabled=true;}
-  toast('Vérification de l\u2019assurance…');
-  const ver=await verifyInsurance(reg);
-  if(submitBtn){submitBtn.disabled=false;}
-  if(ver && ver.ok===false){
-    const af=document.getElementById('assuranceField');
-    af.classList.add('invalid');
-    af.querySelector('.errmsg').textContent = ver.reason==='mismatch'
-      ? 'Le numéro existe mais ne correspond pas à votre identité.'
-      : 'Vous n\u2019apparaissez pas dans la base des assurés.';
-    af.scrollIntoView({behavior:'smooth',block:'center'});
-    toast('Inscription bloquée : assurance non vérifiée');
-    return;
-  }
-
   registrations.push(reg);
   await store.save(registrations);render();
   showRecap(reg);

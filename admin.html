@@ -32,6 +32,7 @@
   .btn{border:0;border-radius:10px;padding:10px 18px;font:inherit;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
   .btn.primary{background:var(--purple);color:#fff}.btn.primary:hover{background:#3a1b59}
   .btn.ghost{background:#fff;border:1px solid var(--line);color:#433c52}.btn.ghost:hover{border-color:var(--violet);color:var(--violet)}
+  .btn.danger{background:#fff;border:1px solid #e7b7b1;color:var(--danger)}.btn.danger:hover{background:var(--danger);color:#fff;border-color:var(--danger)}
   .err{color:var(--danger);font-size:12.5px;margin-top:10px;display:none}
 
   /* dashboard */
@@ -143,6 +144,7 @@
       <button class="btn ghost" id="refreshBtn">↻ Actualiser</button>
       <button class="btn ghost" id="csvBtn">⬇️ CSV</button>
       <button class="btn ghost" id="printAllBtn">🖨️ Imprimer (filtré)</button>
+      <button class="btn danger" id="clearBtn" title="Supprime toutes les inscriptions (phase de test)">🗑️ Vider la base</button>
     </div>
   </div>
   <div id="tableWrap"></div>
@@ -395,6 +397,17 @@ document.getElementById('pwd').addEventListener('keydown',e=>{if(e.key==='Enter'
 ['fCamp','fRegion','fDistrict'].forEach(id=>document.getElementById(id).addEventListener('change',render));
 document.getElementById('fSearch').addEventListener('input',render);
 document.getElementById('refreshBtn').onclick=load;
+document.getElementById('clearBtn').onclick=async()=>{
+  if(!confirm('⚠️ Vider la base : TOUTES les inscriptions seront définitivement supprimées.\n\nÀ n\u2019utiliser que pendant les tests. Continuer ?')) return;
+  if(!confirm('Dernière confirmation — cette action est irréversible. Vider maintenant ?')) return;
+  try{
+    const res=await fetch('/api/clear',{method:'POST',headers:{'x-admin-key':KEY}});
+    if(res.status===401){alert('Non autorisé.');return;}
+    const data=await res.json();
+    alert('Base vidée'+(typeof data.deleted==='number'?` (${data.deleted} inscription(s) supprimée(s)).`:'.'));
+    load();
+  }catch(e){alert('Erreur : '+e);}
+};
 document.getElementById('csvBtn').onclick=exportCsv;
 document.getElementById('printAllBtn').onclick=()=>{const rows=filtered();if(!rows.length){alert('Rien à imprimer');return;}printFiches(rows.map(rowToReg));};
 document.getElementById('logoutTop').onclick=logout;
