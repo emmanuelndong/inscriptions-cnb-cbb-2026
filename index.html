@@ -230,7 +230,6 @@
   .fiche .engageF{margin-bottom:8px}
   .fiche .foot{margin-top:26px;border-top:1px solid #ccc;padding-top:6px;font-size:8.5px;color:#666;text-align:center;line-height:1.5}
 </style>
-<script defer src="/html2pdf.bundle.min.js"></script>
 </head>
 <body>
 
@@ -742,6 +741,19 @@ function printFiches(arr){
   window.print();
 }
 
+let _h2pPromise=null;
+function _loadScript(src){return new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=src;s.onload=resolve;s.onerror=()=>reject(new Error('load fail '+src));document.head.appendChild(s);});}
+async function ensureHtml2pdf(){
+  if(typeof html2pdf!=='undefined') return true;
+  if(!_h2pPromise){
+    _h2pPromise=(async()=>{
+      const sources=['/html2pdf.bundle.min.js','https://cdn.jsdelivr.net/npm/html2pdf.js@0.14.0/dist/html2pdf.bundle.min.js'];
+      for(const src of sources){ try{ await _loadScript(src); if(typeof html2pdf!=='undefined') return true; }catch(e){} }
+      return typeof html2pdf!=='undefined';
+    })();
+  }
+  return _h2pPromise;
+}
 function fileSafe(s){return (s||'').toString().replace(/[\\/:*?"<>|\n\r\t]+/g,' ').replace(/\s+/g,' ').trim();}
 function pdfName(reg){
   let b=fileSafe(reg.nom)+' '+fileSafe(reg.prenoms);
@@ -750,7 +762,8 @@ function pdfName(reg){
 }
 async function downloadFichePDF(reg){
   const base=pdfName(reg), filename=base+'.pdf';
-  if(typeof html2pdf==='undefined'){ // repli : impression (titre = nom suggéré)
+  const ready=await ensureHtml2pdf();
+  if(!ready){ // repli : impression (titre = nom suggéré)
     const prev=document.title; document.title=base; printFiches([reg]);
     setTimeout(()=>{document.title=prev;},1500); return;
   }
