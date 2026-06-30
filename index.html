@@ -287,9 +287,9 @@
           <div class="field"><label>Niveau d'étude <span class="req">*</span></label><input name="niveau" required placeholder="Ex. Licence, BFEM…"><span class="errmsg">Champ requis</span></div>
           <div class="field"><label>Religion <span class="req">*</span></label><input name="religion" required><span class="errmsg">Champ requis</span></div>
           <div class="field col-2"><label>Adresse complète <span class="req">*</span></label><input name="adresse" required><span class="errmsg">Champ requis</span></div>
-          <div class="field"><label>E-mail <span class="req">*</span></label><input type="email" name="email" required placeholder="nom@exemple.com"><span class="errmsg">E-mail invalide</span></div>
-          <div class="field"><label>Mobile <span class="req">*</span></label><input name="mobile" required placeholder="+221 …"><span class="errmsg">Champ requis</span></div>
-          <div class="field"><label>Téléphone fixe <small style="color:var(--muted);font-weight:500">(facultatif)</small></label><input name="fixe"></div>
+          <div class="field"><label>E-mail <small style="color:var(--muted);font-weight:500">(facultatif)</small></label><input type="email" name="email" placeholder="nom@exemple.com"><span class="errmsg">E-mail invalide</span></div>
+          <div class="field"><label>Mobile <span class="req">*</span></label><input name="mobile" type="tel" inputmode="tel" autocomplete="tel" required placeholder="77 123 45 67"><span class="errmsg">Numéro de mobile invalide</span></div>
+          <div class="field"><label>Téléphone fixe <small style="color:var(--muted);font-weight:500">(facultatif)</small></label><input name="fixe" type="tel" inputmode="tel" placeholder="33 821 00 00"><span class="errmsg">Numéro fixe invalide</span></div>
           <div class="field"><label>Profession <span class="req">*</span></label><input name="profession" required><span class="errmsg">Champ requis</span></div>
           <div class="field"><label>Société / École <span class="req">*</span></label><input name="societe" required><span class="errmsg">Champ requis</span></div>
           <div class="field"><label>N° Carte d'identité / Passeport <span class="req">*</span></label><input name="cni" required><span class="errmsg">Champ requis</span></div>
@@ -574,6 +574,31 @@ function validate(){
       dobErr.textContent=`Le candidat doit atteindre ${MIN_AGE} ans en 2026 (âge au ${AGE_REF_LABEL} : ${age} ans).`; ok=false; }
     else dobField.classList.remove('invalid');
   }
+
+  // E-mail facultatif : valider seulement s'il est rempli
+  const emailEl=f.elements['email'], emailField=emailEl.closest('.field');
+  if(emailEl.value.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailEl.value.trim())){
+    emailField.classList.add('invalid'); ok=false;
+  } else emailField.classList.remove('invalid');
+
+  // Téléphones : numéro sénégalais valide (mobile commence par 7, fixe par 3 ; 9 chiffres, +221 toléré)
+  const clean=v=>(v||'').replace(/[\s.\-()]/g,'');
+  const mobileOk=v=>/^((\+|00)?221)?7[0-9]{8}$/.test(clean(v));
+  const fixeOk=v=>/^((\+|00)?221)?3[0-9]{8}$/.test(clean(v));
+  const mob=f.elements['mobile'], mobField=mob.closest('.field');
+  if(!mobileOk(mob.value)){
+    mobField.classList.add('invalid');
+    mobField.querySelector('.errmsg').textContent = mob.value.trim()
+      ? 'Numéro de mobile invalide (ex. 77 123 45 67)' : 'Champ requis';
+    ok=false;
+  } else mobField.classList.remove('invalid');
+  const fix=f.elements['fixe'], fixField=fix.closest('.field');
+  if(fix.value.trim() && !fixeOk(fix.value)){
+    fixField.classList.add('invalid');
+    fixField.querySelector('.errmsg').textContent='Numéro fixe invalide (ex. 33 821 00 00)';
+    ok=false;
+  } else fixField.classList.remove('invalid');
+
   return ok;
 }
 const MIN_AGE=20, AGE_REF_DATE='2026-12-31', AGE_REF_LABEL='31/12/2026';
@@ -864,6 +889,14 @@ document.getElementById('exportCsv').onclick=exportCsv;
 document.getElementById('form').addEventListener('input',e=>{
   const f=e.target.closest('.field.invalid');if(f)f.classList.remove('invalid');
   if(e.target.classList.contains('st-req')&&e.target.value.trim())e.target.classList.remove('bad');
+});
+// verrouillage de la saisie : seuls chiffres, espaces et + dans les champs téléphone
+['mobile','fixe'].forEach(n=>{
+  const el=document.querySelector(`input[name="${n}"]`);
+  if(el) el.addEventListener('input',()=>{
+    const clean=el.value.replace(/[^\d+\s]/g,'').replace(/(?!^)\+/g,'');
+    if(clean!==el.value) el.value=clean;
+  });
 });
 document.getElementById('form').addEventListener('submit',async e=>{
   e.preventDefault();
