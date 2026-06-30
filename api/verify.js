@@ -1,41 +1,28 @@
-// Vérifie qu'un candidat figure dans la base des assurés (plusieurs Google Sheets publiés en CSV).
-// Clé : N° d'assurance + Nom + Prénom + Date de naissance. Lieu de naissance ignoré.
+// Vérifie qu'un candidat figure dans la base des assurés (plusieurs Google Sheets exportés en CSV).
+// Adapté à la structure réelle des feuilles "ÉTAT NOMINATIF" des Scouts du Sénégal :
+//   - quelques lignes de titre + vides AVANT l'en-tête (détection auto de la ligne d'en-tête) ;
+//   - colonnes repérées par NOM (et non par position, qui varie d'une région à l'autre) ;
+//   - numéro = colonne "Numéro Carte".
+// Clé de correspondance : N° Carte + Nom + Prénom. (La date "Date et Lieu de Naissance" est trop
+// irrégulière — texte/chiffres + lieu — donc non bloquante, pour éviter les faux rejets.)
 //
-// Configuration : variable d'environnement INSURANCE_CSV_URL = une OU PLUSIEURS URLs CSV publiées,
-// séparées par des virgules (ou des espaces / retours à la ligne). Ex. les 7 feuilles
-// (6 régions + équipe nationale). Chaque feuille est lue indépendamment (détection de colonnes
-// propre à chacune) puis tout est fusionné : le candidat est accepté s'il figure dans l'UNE d'elles.
+// Config : INSURANCE_CSV_URL = une ou plusieurs URLs CSV, séparées par des virgules.
+//   (lien d'édition -> remplacer /edit?... par /export?format=csv  ;  partage = "tout le monde avec le lien")
 //
-// Performance : ensemble lu une seule fois puis mis en cache (5 min) avec un index par numéro.
-//
-// « Fail-open » de sécurité : si rien n'est configuré, si AUCUNE source ne se charge, ou si une
-// partie des sources a échoué et que la personne n'a pas été trouvée, on NE bloque PAS (ok:true).
-// On bloque (ok:false) seulement quand toutes les sources ont bien été lues et que la personne n'y
-// figure pas — ou quand le numéro correspond à une autre identité.
+// Fail-open de sécurité : rien configuré / aucune source lisible / une partie en panne -> ne bloque pas.
 
 let CACHE = { t: 0, idx: null };
-const TTL = 5 * 60 * 1000; // 5 min
+const TTL = 5 * 60 * 1000;
 
 const norm = s => (s == null ? '' : s.toString())
   .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
   .toUpperCase()
-  .replace(/['’`´]/g, '')          // apostrophes -> rien  (N'DIAYE -> NDIAYE)
-  .replace(/[-_.]/g, ' ')          // tirets/points -> espace
-  .replace(/[^A-Z0-9 ]/g, ' ')     // autre symbole -> espace
+  .replace(/['’`´]/g, '')
+  .replace(/[-_.]/g, ' ')
+  .replace(/[^A-Z0-9 ]/g, ' ')
   .replace(/\s+/g, ' ').trim();
 const normNum = s => norm(s).replace(/\s/g, '');
 const keyOf = s => { const n = normNum(s); return /^\d+$/.test(n) ? String(Number(n)) : n; };
-const pad2 = s => ('0' + s).slice(-2);
-
-function canonDate(s) {
-  if (!s) return '';
-  s = s.toString().trim();
-  let m = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);            // YYYY-MM-DD
-  if (m) return m[1] + pad2(m[2]) + pad2(m[3]);
-  m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/);              // DD/MM/YYYY
-  if (m) { let y = m[3]; if (y.length === 2) y = (Number(y) > 30 ? '19' : '20') + y; return y + pad2(m[2]) + pad2(m[1]); }
-  return s.replace(/\D/g, '');
-}
 
 function parseCSV(text) {
   const rows = []; let row = [], field = '', i = 0, q = false;
@@ -56,30 +43,39 @@ function parseCSV(text) {
   return rows;
 }
 
+const isNumCol = h => /(CARTE|ASSUR|POLICE|MATRICULE|ADHESION|ADHERENT)/.test(h);
+const isNomCol = h => /NOM/.test(h) && !/PRENOM/.test(h);
+const isPreCol = h => /PRENOM/.test(h);
 function findCol(H, pred) { for (let i = 0; i < H.length; i++) if (pred(norm(H[i]))) return i; return -1; }
 
-// Construit une map { clé numéro -> [ {nom,pre,dob} ] } pour UNE feuille
+// Trouve la ligne d'en-tête (celle qui contient à la fois une colonne Nom et une colonne Numéro)
+function detectHeaderRow(rows) {
+  const lim = Math.min(rows.length, 40);
+  for (let i = 0; i < lim; i++) {
+    const H = rows[i] || [];
+    const hasNom = H.some(c => isNomCol(norm(c)));
+    const hasNum = H.some(c => isNumCol(norm(c)));
+    if (hasNom && hasNum) return i;
+  }
+  return -1;
+}
+
 function buildMap(rows) {
-  if (!rows || rows.length < 2) return { ok: false, reason: 'empty' };
-  const H = rows[0];
-  const iAss = findCol(H, h => /(ASSUR|POLICE|MATRICULE|ADHESION|ADHERENT)/.test(h));
-  const iPre = findCol(H, h => /PRENOM/.test(h));
-  const iNom = findCol(H, h => /NOM/.test(h) && !/PRENOM/.test(h));
-  let iDob = findCol(H, h => /NAISS/.test(h) || (/\bNEE?\b/.test(h) && /\bLE\b/.test(h)));
-  if (iDob < 0) iDob = findCol(H, h => /DATE/.test(h));
+  const hr = detectHeaderRow(rows);
+  if (hr < 0) return { ok: false, reason: 'columns' };
+  const H = rows[hr];
+  const iAss = findCol(H, isNumCol);
+  const iNom = findCol(H, isNomCol);
+  const iPre = findCol(H, isPreCol);
   if (iAss < 0 || iNom < 0) return { ok: false, reason: 'columns' };
 
   const map = new Map();
-  for (let r = 1; r < rows.length; r++) {
+  for (let r = hr + 1; r < rows.length; r++) {
     const row = rows[r];
     if (!row || row.length === 0) continue;
     const k = keyOf(row[iAss]);
     if (!k) continue;
-    const rec = {
-      nom: norm(row[iNom]),
-      pre: iPre >= 0 ? norm(row[iPre]) : '',
-      dob: iDob >= 0 ? canonDate(row[iDob]) : ''
-    };
+    const rec = { nom: norm(row[iNom]), pre: iPre >= 0 ? norm(row[iPre]) : '' };
     if (!map.has(k)) map.set(k, []);
     map.get(k).push(rec);
   }
@@ -95,7 +91,7 @@ async function getIndex() {
   if (!urls.length) return { status: 'unconfigured' };
 
   const results = await Promise.allSettled(urls.map(async u => {
-    const res = await fetch(u);
+    const res = await fetch(u, { redirect: 'follow' });
     if (!res.ok) throw new Error('http ' + res.status);
     return parseCSV(await res.text());
   }));
@@ -113,7 +109,7 @@ async function getIndex() {
     }
   }
 
-  if (loaded === 0) return { status: 'source_error' };          // rien d'exploitable -> ne pas cacher
+  if (loaded === 0) return { status: 'source_error' };
   const idx = { status: 'ok', map, partial: failed > 0 };
   CACHE = { t: Date.now(), idx };
   return idx;
@@ -127,11 +123,11 @@ export default async function handler(req, res) {
     if (typeof d === 'string') d = JSON.parse(d);
 
     const idx = await getIndex();
-    if (idx.status !== 'ok') { res.status(200).json({ ok: true, note: idx.status }); return; } // fail-open infra
+    if (idx.status !== 'ok') { res.status(200).json({ ok: true, note: idx.status }); return; }
 
     const recs = idx.map.get(keyOf(d.assurance));
     if (recs) {
-      const wantNom = norm(d.nom), wantPre = norm(d.prenoms), wantDob = canonDate(d.naissance);
+      const wantNom = norm(d.nom), wantPre = norm(d.prenoms);
       for (const rec of recs) {
         const nomOk = !rec.nom || rec.nom === wantNom || rec.nom.includes(wantNom) || wantNom.includes(rec.nom);
         let preOk = true;
@@ -139,13 +135,11 @@ export default async function handler(req, res) {
           const t1 = wantPre.split(' ')[0], t2 = rec.pre.split(' ')[0];
           preOk = rec.pre === wantPre || rec.pre.includes(t1) || wantPre.includes(t2) || t1 === t2;
         }
-        const dobOk = !(rec.dob && wantDob) || rec.dob === wantDob;
-        if (nomOk && preOk && dobOk) { res.status(200).json({ ok: true }); return; }
+        if (nomOk && preOk) { res.status(200).json({ ok: true }); return; }
       }
-      res.status(200).json({ ok: false, reason: 'mismatch' }); return; // numéro trouvé, identité différente
+      res.status(200).json({ ok: false, reason: 'mismatch' }); return;
     }
 
-    // numéro non trouvé : si une partie des sources a échoué, ne pas rejeter à tort
     if (idx.partial) { res.status(200).json({ ok: true, note: 'partial_sources' }); return; }
     res.status(200).json({ ok: false, reason: 'not_insured' });
   } catch (err) {
