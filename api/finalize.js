@@ -40,7 +40,7 @@ export default async function handler(req, res) {
     const found = await sql`SELECT id, nom FROM inscriptions WHERE UPPER(ref) = ${ref} ORDER BY created_at DESC LIMIT 1`;
     if (!found.length) { res.status(404).json({ ok: false, error: 'Référence introuvable' }); return; }
 
-    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    if (!process.env.BLOB_READ_WRITE_TOKEN && !process.env.BLOB_STORE_ID) {
       res.status(500).json({ ok: false, error: 'Stockage non configuré (Vercel Blob).' }); return;
     }
 
