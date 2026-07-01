@@ -192,6 +192,14 @@
   .recap-grp .r b{flex:0 0 42%;color:#433c52;font-weight:600}
   .recap-grp .r span{flex:1;color:#241F2E}
   .modal .mfoot{padding:16px 24px;background:#fbfafc;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end}
+  .refbox{margin:0 24px 8px;padding:14px 16px;border:1px dashed var(--violet);background:var(--violet-soft);border-radius:12px}  .refbox:empty{display:none}
+  .refline{font-size:15px;color:#2f2a3a}.refline b{font-family:Marcellus,serif;letter-spacing:.5px;color:var(--purple);font-size:18px}
+  .refhint{font-size:12.5px;color:#5a5468;margin:6px 0 12px;line-height:1.5}
+  .reflink{display:inline-flex;text-decoration:none}
+  .finalize-bar{max-width:920px;margin:14px auto 0;padding:0 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:space-between}
+  .finalize-bar span{font-size:13px;color:var(--muted)}
+  .btn-finalize{display:inline-flex;align-items:center;gap:8px;text-decoration:none;background:#fff;border:1.5px solid var(--violet);color:var(--violet);font-weight:600;border-radius:10px;padding:9px 16px;font-size:14px;transition:.15s}
+  .btn-finalize:hover{background:var(--purple);border-color:var(--purple);color:#fff}
 
   /* ================= PRINT / FICHE OFFICIELLE ================= */
   #print-root{display:none}
@@ -246,6 +254,11 @@
     </div>
   </div>
 </header>
+
+<div class="finalize-bar noprint">
+  <span>Déjà inscrit ? Une fois votre fiche signée, finalisez votre inscription.</span>
+  <a class="btn-finalize" href="/finaliser.html">📤 Finaliser mon inscription</a>
+</div>
 
 <div class="wrap">
   <!-- ================= FORM ================= -->
@@ -389,6 +402,7 @@
       <div><h3>Inscription enregistrée</h3><p id="modalSub"></p></div>
     </div>
     <div class="mbody" id="modalBody"></div>
+    <div class="refbox" id="modalRef"></div>
     <div class="mfoot">
       <button class="btn ghost" id="modalPdf">🖨️ Télécharger ma fiche (PDF)</button>
       <button class="btn primary" id="modalClose">Terminer</button>
@@ -682,6 +696,7 @@ function ficheHTML(r){
         <div class="org">Scouts du Sénégal · Commissariat National Chargé des Adultes</div>
         <h2>Fiche d'inscription — ${esc(r.camp)||'Camp CNB / CBB 2026'}</h2>
         <div class="sub">Sébikotane · 4 – 11 septembre 2026</div>
+        ${r.ref?`<div class="sub" style="margin-top:2px;font-weight:700;color:var(--purple)">Référence : ${esc(r.ref)}</div>`:''}
       </div>
       <img class="flogo" src="${LOGO_R}" alt="Scoutisme Mondial">
     </div>
@@ -839,6 +854,10 @@ function showRecap(r){
   recapReg=r;
   document.getElementById('modalSub').textContent=`${r.prenoms} ${r.nom} — ${r.camp}`;
   document.getElementById('modalBody').innerHTML=buildRecap(r);
+  document.getElementById('modalRef').innerHTML = r.ref ? `
+    <div class="refline">Votre référence : <b>${esc(r.ref)}</b></div>
+    <p class="refhint">Notez-la : elle figure aussi sur votre fiche. Après avoir fait signer votre fiche (chef de groupe, commissaire district, CRCA), déposez-la ici pour rendre votre inscription <b>définitive</b>.</p>
+    <a class="btn primary reflink" href="/finaliser.html?ref=${encodeURIComponent(r.ref)}">📤 Déposer ma fiche signée</a>` : '';
   document.getElementById('modalBg').classList.add('show');
 }
 function closeModal(){document.getElementById('modalBg').classList.remove('show');}
@@ -916,6 +935,24 @@ document.getElementById('form').addEventListener('submit',async e=>{
   if(!validate()){toast('Veuillez corriger les champs en rouge');
     document.querySelector('.invalid, .st-req.bad')?.scrollIntoView({behavior:'smooth',block:'center'});return;}
   const reg=readForm();
+  reg.ref='SDS26-'+Math.random().toString(36).slice(2,8).toUpperCase();
+
+  // vérification d'assurance (bloque si non assuré)
+  const submitBtn=e.target.querySelector('[type="submit"]');
+  if(submitBtn) submitBtn.disabled=true;
+  toast('Vérification de l\u2019assurance…');
+  const ver=await verifyInsurance(reg);
+  if(submitBtn) submitBtn.disabled=false;
+  if(ver && ver.ok===false){
+    const af=document.getElementById('assuranceField');
+    af.classList.add('invalid');
+    af.querySelector('.errmsg').textContent = ver.reason==='mismatch'
+      ? 'Le numéro existe mais ne correspond pas à votre identité.'
+      : 'Vous n\u2019apparaissez pas dans la base des assurés.';
+    af.scrollIntoView({behavior:'smooth',block:'center'});
+    toast('Inscription bloquée : assurance non vérifiée');
+    return;
+  }
 
   registrations.push(reg);
   await store.save(registrations);render();
