@@ -51,6 +51,10 @@
   .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle}
   .tbtn{border:1px solid var(--line);background:#fff;border-radius:7px;padding:5px 9px;cursor:pointer;font-size:12px}
   .tbtn:hover{border-color:var(--violet);color:var(--violet)}
+  .stbadge{display:inline-block;font-size:11px;font-weight:700;border-radius:20px;padding:2px 9px;white-space:nowrap}
+  .stbadge.done{background:#e9f5ee;color:var(--green)}
+  .stbadge.wait{background:#fdf3e0;color:#8a5a00}
+  .sfile{margin-left:4px;text-decoration:none;font-size:13px}
   .empty{padding:40px;text-align:center;color:var(--muted)}
   .muted{color:var(--muted);font-size:12px}
 
@@ -139,12 +143,13 @@
     <div class="f"><label>Camp</label><select id="fCamp"><option value="">Tous</option></select></div>
     <div class="f"><label>Région</label><select id="fRegion"><option value="">Toutes</option></select></div>
     <div class="f"><label>District</label><select id="fDistrict"><option value="">Tous</option></select></div>
+    <div class="f"><label>Statut</label><select id="fStatut"><option value="">Tous</option><option value="definitive">Définitives</option><option value="en_attente">En attente</option></select></div>
     <div class="f"><label>Recherche</label><input id="fSearch" placeholder="Nom, prénom, groupe…"></div>
     <div class="actions">
       <button class="btn ghost" id="refreshBtn">↻ Actualiser</button>
       <button class="btn ghost" id="csvBtn">⬇️ CSV</button>
       <button class="btn ghost" id="printAllBtn">🖨️ Imprimer (filtré)</button>
-      <button class="btn danger" id="clearBtn" title="Supprime toutes les inscriptions (phase de test)">🗑️ Vider la base</button>
+      <button class="btn danger" id="clearBtn" disabled title="Désactivé">🗑️ Vider la base</button>
     </div>
   </div>
   <div id="tableWrap"></div>
@@ -170,6 +175,7 @@ function ficheHTML(r){
         <div class="org">Scouts du Sénégal · Commissariat National Chargé des Adultes</div>
         <h2>Fiche d'inscription — ${esc(r.camp)||'Camp CNB / CBB 2026'}</h2>
         <div class="sub">Sébikotane · 4 – 11 septembre 2026</div>
+        ${r.ref?`<div class="sub" style="margin-top:2px;font-weight:700;color:var(--purple)">Référence : ${esc(r.ref)}</div>`:''}
       </div>
       <img class="flogo" src="${LOGO_R}" alt="Scoutisme Mondial">
     </div>
@@ -284,7 +290,8 @@ const rowToReg=r=>({
   profession:r.profession,societe:r.societe,cni:r.cni,cniDate:r.cni_date,taille:r.taille,assurance:r.assurance,medical:r.medical,urgence:r.urgence,
   region:r.region,district:r.district,groupe:r.groupe,fonction:r.fonction,entree:r.entree,promesse:r.promesse,
   struct:Array.isArray(r.struct)?r.struct:(r.struct?JSON.parse(r.struct):[]),
-  autre:Array.isArray(r.autre)?r.autre:(r.autre?JSON.parse(r.autre):[])
+  autre:Array.isArray(r.autre)?r.autre:(r.autre?JSON.parse(r.autre):[]),
+  ref:r.ref
 });
 const campColor=c=>({'CNB Jaune':'#E0A52B','CNB Vert':'#1F7A44','CNB Rouge':'#B42318','CBB':'#4A2370'}[c]||'#b3adbf');
 
@@ -311,26 +318,31 @@ function buildFilters(){
 }
 function filtered(){
   const c=document.getElementById('fCamp').value, rg=document.getElementById('fRegion').value,
-        d=document.getElementById('fDistrict').value, q=document.getElementById('fSearch').value.toLowerCase().trim();
+        d=document.getElementById('fDistrict').value, st=document.getElementById('fStatut').value,
+        q=document.getElementById('fSearch').value.toLowerCase().trim();
   return ALL.filter(r=>(!c||r.camp===c)&&(!rg||r.region===rg)&&(!d||r.district===d)&&
-    (!q||[r.nom,r.prenoms,r.groupe,r.mobile,r.email].some(v=>(v||'').toLowerCase().includes(q))));
+    (!st||(st==='definitive'?r.statut==='definitive':r.statut!=='definitive'))&&
+    (!q||[r.nom,r.prenoms,r.groupe,r.mobile,r.email,r.ref].some(v=>(v||'').toLowerCase().includes(q))));
 }
 function render(){
   const rows=filtered();
   const byCamp=c=>ALL.filter(r=>r.camp===c).length;
+  const defCount=ALL.filter(r=>r.statut==='definitive').length;
   document.getElementById('stats').innerHTML=
     `<div class="stat"><b>${ALL.length}</b><span>inscriptions au total</span></div>`+
+    `<div class="stat"><b>${defCount}</b><span>définitives</span></div>`+
     `<div class="stat"><b>${rows.length}</b><span>affichées (filtre)</span></div>`+
     ['CNB Jaune','CNB Vert','CNB Rouge','CBB'].map(c=>`<div class="stat"><b>${byCamp(c)}</b><span>${c}</span></div>`).join('');
   if(!rows.length){document.getElementById('tableWrap').innerHTML='<div class="empty">Aucune inscription.</div>';return;}
   document.getElementById('tableWrap').innerHTML=`<table><thead><tr>
-    <th>Date</th><th>Camp</th><th>Nom & prénoms</th><th>Région</th><th>District</th><th>Groupe</th><th>Taille</th><th>Mobile</th><th></th>
+    <th>Date</th><th>Camp</th><th>Nom & prénoms</th><th>Région</th><th>District</th><th>Groupe</th><th>Taille</th><th>Statut</th><th>Mobile</th><th></th>
     </tr></thead><tbody>${rows.map((r,i)=>`<tr>
       <td class="muted">${fmtDate(r.created_at)}</td>
       <td><span class="dot" style="background:${campColor(r.camp)}"></span>${esc(r.camp)}</td>
       <td><b>${esc(r.prenoms)} ${esc(r.nom)}</b></td>
       <td>${esc(r.region)}</td><td>${esc(r.district)}</td><td>${esc(r.groupe)}</td>
       <td><b>${esc(r.taille)||'—'}</b></td>
+      <td>${r.statut==='definitive'?'<span class="stbadge done">✓ Définitive</span>':'<span class="stbadge wait">En attente</span>'}${r.signed_url?` <a href="${esc(r.signed_url)}" target="_blank" rel="noopener" class="sfile">📎</a>`:''}</td>
       <td class="muted">${esc(r.mobile)}</td>
       <td><button class="tbtn" data-i="${ALL.indexOf(r)}" title="Télécharger la fiche en PDF">⬇️ PDF</button></td>
     </tr>`).join('')}</tbody></table>`;
@@ -380,12 +392,12 @@ function renderCharts(){
 function exportCsv(){
   const rows=filtered();
   if(!rows.length){alert('Aucune inscription à exporter');return;}
-  const cols=[['created_at','Horodatage'],['camp','Camp'],['nom','Nom'],['prenoms','Prénoms'],
+  const cols=[['created_at','Horodatage'],['ref','Référence'],['statut','Statut'],['camp','Camp'],['nom','Nom'],['prenoms','Prénoms'],
     ['naissance','Date naissance'],['lieu_naissance','Lieu naissance'],['niveau','Niveau'],['religion','Religion'],
     ['adresse','Adresse'],['email','E-mail'],['mobile','Mobile'],['fixe','Tél fixe'],['profession','Profession'],
     ['societe','Société/École'],['cni','CNI/Passeport'],['cni_date','Date établissement'],['taille','Taille tenue'],['assurance',"N° d'assurance"],['medical','Médical'],
     ['urgence','Contact urgence'],['region','Région'],['district','District'],['groupe','Groupe'],
-    ['fonction','Fonction'],['entree',"Année d'entrée"],['promesse','Année de promesse']];
+    ['fonction','Fonction'],['entree',"Année d'entrée"],['promesse','Année de promesse'],['signed_url','Fiche signée (lien)']];
   const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
   const head=cols.map(c=>q(c[1])).concat([q('Stages structurés'),q('Stages libres')]).join(';');
   const body=rows.map(r=>{
@@ -408,7 +420,7 @@ document.getElementById('loginBtn').onclick=()=>{
   document.getElementById('loginErr').style.display='none';load();
 };
 document.getElementById('pwd').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('loginBtn').click();});
-['fCamp','fRegion','fDistrict'].forEach(id=>document.getElementById(id).addEventListener('change',render));
+['fCamp','fRegion','fDistrict','fStatut'].forEach(id=>document.getElementById(id).addEventListener('change',render));
 document.getElementById('fSearch').addEventListener('input',render);
 document.getElementById('refreshBtn').onclick=load;
 document.getElementById('clearBtn').onclick=async()=>{
