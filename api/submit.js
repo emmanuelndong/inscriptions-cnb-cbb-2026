@@ -27,6 +27,7 @@ async function ensureTable() {
   await sql`ALTER TABLE inscriptions ADD COLUMN IF NOT EXISTS statut TEXT DEFAULT 'en_attente'`;
   await sql`ALTER TABLE inscriptions ADD COLUMN IF NOT EXISTS signed_url TEXT`;
   await sql`ALTER TABLE inscriptions ADD COLUMN IF NOT EXISTS signed_at TIMESTAMPTZ`;
+  await sql`ALTER TABLE inscriptions ADD COLUMN IF NOT EXISTS motif TEXT`;
 }
 
 export default async function handler(req, res) {

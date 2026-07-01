@@ -40,6 +40,8 @@
   .badge{display:inline-block;font-size:11.5px;font-weight:700;border-radius:20px;padding:3px 10px;margin-top:8px}
   .badge.wait{background:#fdf3e0;color:#8a5a00}
   .badge.done{background:#e9f5ee;color:var(--ok)}
+  .badge.todo{background:#eaf1fd;color:#1f4fb4}
+  .badge.rej{background:#fdeceb;color:var(--danger)}
   .drop{margin-top:16px;border:1.5px dashed var(--violet);border-radius:12px;padding:18px;text-align:center;background:#fbfafc}
   .drop input{display:none}
   .drop .pick{color:var(--violet);font-weight:600;cursor:pointer;text-decoration:underline}
@@ -123,12 +125,20 @@ async function findRef(){
     currentRef=ref;
     $('whoName').textContent=`${d.prenoms} ${d.nom}`;
     $('whoSub').textContent=d.camp||'';
-    const done=d.statut==='definitive';
-    $('whoBadge').innerHTML=done
-      ? '<span class="badge done">✓ Déjà définitive</span>'
-      : '<span class="badge wait">En attente de la fiche signée</span>';
+    const st=d.statut||'en_attente';
+    if(st==='validee'){
+      $('whoBadge').innerHTML='<span class="badge done">✓ Validée et définitive</span>';
+      show($('sendMsg'),'ok','Votre inscription est <b>validée et définitive</b>. Merci ! (Inutile de redéposer.)');
+    }else if(st==='soumise'){
+      $('whoBadge').innerHTML='<span class="badge todo">Fiche déposée — en cours de validation</span>';
+      show($('sendMsg'),'info','Votre fiche a bien été reçue et est <b>en cours de validation</b>. Revenez ici avec votre référence pour suivre l\u2019avancement.');
+    }else if(st==='rejetee'){
+      $('whoBadge').innerHTML='<span class="badge rej">✗ Fiche refusée</span>';
+      show($('sendMsg'),'err','Votre fiche a été <b>refusée</b>.'+(d.motif?' Motif : '+d.motif+'.':'')+' Merci de redéposer une fiche correctement signée ci-dessous.');
+    }else{
+      $('whoBadge').innerHTML='<span class="badge wait">En attente de votre fiche signée</span>';
+    }
     $('who').style.display='block';
-    if(done){show($('sendMsg'),'info','Votre inscription est déjà définitive. Vous pouvez redéposer un fichier si besoin (il remplacera le précédent).');}
   }catch(e){show($('findMsg'),'err','Erreur réseau, réessayez.');}
 }
 
@@ -175,8 +185,8 @@ async function sendFile(){
       body:JSON.stringify({ref:currentRef,filename:pickedFile.name,contentType,data})});
     const d=await res.json();
     if(!res.ok||!d.ok){show($('sendMsg'),'err',d.error||'Échec du dépôt. Réessayez.');btn.innerHTML=label;btn.disabled=false;return;}
-    show($('sendMsg'),'ok','✓ Fiche reçue ! Votre inscription est maintenant <b>définitive</b>. Merci.');
-    $('whoBadge').innerHTML='<span class="badge done">✓ Définitive</span>';
+    show($('sendMsg'),'ok','✓ Fiche reçue ! Elle est maintenant <b>en cours de validation</b>. Revenez ici avec votre référence pour suivre le statut.');
+    $('whoBadge').innerHTML='<span class="badge todo">En cours de validation</span>';
     btn.innerHTML=label;btn.disabled=false;
   }catch(e){show($('sendMsg'),'err',e.message||'Erreur, réessayez.');btn.innerHTML=label;btn.disabled=false;}
 }

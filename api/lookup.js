@@ -16,7 +16,7 @@ export default async function handler(req, res) {
   if (!ref) { res.status(400).json({ ok: false, error: 'Référence manquante' }); return; }
   try {
     const rows = await sql`
-      SELECT nom, prenoms, camp, statut, signed_url
+      SELECT nom, prenoms, camp, statut, signed_url, motif
       FROM inscriptions
       WHERE UPPER(ref) = ${ref}
       ORDER BY created_at DESC
@@ -27,6 +27,7 @@ export default async function handler(req, res) {
       ok: true, found: true,
       nom: r.nom, prenoms: r.prenoms, camp: r.camp,
       statut: r.statut || 'en_attente',
+      motif: r.motif || '',
       hasFile: !!r.signed_url
     });
   } catch (err) {

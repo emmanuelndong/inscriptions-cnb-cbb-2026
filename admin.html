@@ -53,8 +53,14 @@
   .tbtn:hover{border-color:var(--violet);color:var(--violet)}
   .stbadge{display:inline-block;font-size:11px;font-weight:700;border-radius:20px;padding:2px 9px;white-space:nowrap}
   .stbadge.done{background:#e9f5ee;color:var(--green)}
-  .stbadge.wait{background:#fdf3e0;color:#8a5a00}
-  .sfile{margin-left:4px;text-decoration:none;font-size:13px}
+  .stbadge.wait{background:#f0ecf6;color:#6a6478}
+  .stbadge.todo{background:#eaf1fd;color:#1f4fb4}
+  .stbadge.rej{background:#fdeceb;color:var(--danger);cursor:help}
+  .sfile{margin-left:2px;text-decoration:none;font-size:13px}
+  .stwrap{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .mini{border:1px solid var(--line);background:#fff;border-radius:7px;padding:3px 9px;font:inherit;font-size:11.5px;font-weight:600;cursor:pointer;white-space:nowrap}
+  .mini.ok{border-color:#bfe3cd;color:var(--green)}.mini.ok:hover{background:var(--green);color:#fff;border-color:var(--green)}
+  .mini.no{border-color:#e7b7b1;color:var(--danger)}.mini.no:hover{background:var(--danger);color:#fff;border-color:var(--danger)}
   .empty{padding:40px;text-align:center;color:var(--muted)}
   .muted{color:var(--muted);font-size:12px}
 
@@ -143,7 +149,7 @@
     <div class="f"><label>Camp</label><select id="fCamp"><option value="">Tous</option></select></div>
     <div class="f"><label>Région</label><select id="fRegion"><option value="">Toutes</option></select></div>
     <div class="f"><label>District</label><select id="fDistrict"><option value="">Tous</option></select></div>
-    <div class="f"><label>Statut</label><select id="fStatut"><option value="">Tous</option><option value="definitive">Définitives</option><option value="en_attente">En attente</option></select></div>
+    <div class="f"><label>Statut</label><select id="fStatut"><option value="">Tous</option><option value="soumise">À valider</option><option value="validee">Validées</option><option value="rejetee">Rejetées</option><option value="en_attente">En attente</option></select></div>
     <div class="f"><label>Recherche</label><input id="fSearch" placeholder="Nom, prénom, groupe…"></div>
     <div class="actions">
       <button class="btn ghost" id="refreshBtn">↻ Actualiser</button>
@@ -295,6 +301,37 @@ const rowToReg=r=>({
 });
 const campColor=c=>({'CNB Jaune':'#E0A52B','CNB Vert':'#1F7A44','CNB Rouge':'#B42318','CBB':'#4A2370'}[c]||'#b3adbf');
 
+function statutCell(r){
+  const st=r.statut||'en_attente';
+  const file=r.signed_url?` <a href="${esc(r.signed_url)}" target="_blank" rel="noopener" class="sfile" title="Voir la fiche déposée">📎</a>`:'';
+  let badge='';
+  if(st==='validee') badge='<span class="stbadge done">✓ Validée</span>';
+  else if(st==='soumise') badge='<span class="stbadge todo">À valider</span>';
+  else if(st==='rejetee') badge=`<span class="stbadge rej" title="${esc(r.motif)||''}">✗ Rejetée</span>`;
+  else badge='<span class="stbadge wait">En attente</span>';
+  let actions='';
+  if(st==='soumise'||st==='rejetee'){
+    actions+=` <button class="mini ok vbtn" data-ref="${esc(r.ref)}">Valider</button>`;
+  }
+  if(st==='soumise'||st==='validee'){
+    actions+=` <button class="mini no rbtn" data-ref="${esc(r.ref)}">Rejeter</button>`;
+  }
+  return `<div class="stwrap">${badge}${file}${actions}</div>`;
+}
+
+async function validate(ref, action, motif){
+  if(!ref){alert('Référence manquante');return;}
+  try{
+    const res=await fetch('/api/validate',{method:'POST',
+      headers:{'Content-Type':'application/json','x-admin-key':KEY},
+      body:JSON.stringify({ref,action,motif:motif||''})});
+    if(res.status===401){alert('Non autorisé.');return;}
+    const d=await res.json();
+    if(!d.ok){alert(d.error||'Échec.');return;}
+    load();
+  }catch(e){alert('Erreur : '+e);}
+}
+
 async function load(){
   try{
     const res=await fetch('/api/list',{headers:{'x-admin-key':KEY}});
@@ -321,16 +358,18 @@ function filtered(){
         d=document.getElementById('fDistrict').value, st=document.getElementById('fStatut').value,
         q=document.getElementById('fSearch').value.toLowerCase().trim();
   return ALL.filter(r=>(!c||r.camp===c)&&(!rg||r.region===rg)&&(!d||r.district===d)&&
-    (!st||(st==='definitive'?r.statut==='definitive':r.statut!=='definitive'))&&
+    (!st||(r.statut||'en_attente')===st)&&
     (!q||[r.nom,r.prenoms,r.groupe,r.mobile,r.email,r.ref].some(v=>(v||'').toLowerCase().includes(q))));
 }
 function render(){
   const rows=filtered();
   const byCamp=c=>ALL.filter(r=>r.camp===c).length;
-  const defCount=ALL.filter(r=>r.statut==='definitive').length;
+  const defCount=ALL.filter(r=>r.statut==='validee').length;
+  const toValidate=ALL.filter(r=>r.statut==='soumise').length;
   document.getElementById('stats').innerHTML=
     `<div class="stat"><b>${ALL.length}</b><span>inscriptions au total</span></div>`+
-    `<div class="stat"><b>${defCount}</b><span>définitives</span></div>`+
+    `<div class="stat"><b>${defCount}</b><span>validées</span></div>`+
+    `<div class="stat"><b>${toValidate}</b><span>à valider</span></div>`+
     `<div class="stat"><b>${rows.length}</b><span>affichées (filtre)</span></div>`+
     ['CNB Jaune','CNB Vert','CNB Rouge','CBB'].map(c=>`<div class="stat"><b>${byCamp(c)}</b><span>${c}</span></div>`).join('');
   if(!rows.length){document.getElementById('tableWrap').innerHTML='<div class="empty">Aucune inscription.</div>';return;}
@@ -342,11 +381,16 @@ function render(){
       <td><b>${esc(r.prenoms)} ${esc(r.nom)}</b></td>
       <td>${esc(r.region)}</td><td>${esc(r.district)}</td><td>${esc(r.groupe)}</td>
       <td><b>${esc(r.taille)||'—'}</b></td>
-      <td>${r.statut==='definitive'?'<span class="stbadge done">✓ Définitive</span>':'<span class="stbadge wait">En attente</span>'}${r.signed_url?` <a href="${esc(r.signed_url)}" target="_blank" rel="noopener" class="sfile">📎</a>`:''}</td>
+      <td>${statutCell(r)}</td>
       <td class="muted">${esc(r.mobile)}</td>
       <td><button class="tbtn" data-i="${ALL.indexOf(r)}" title="Télécharger la fiche en PDF">⬇️ PDF</button></td>
     </tr>`).join('')}</tbody></table>`;
   document.querySelectorAll('.tbtn[data-i]').forEach(b=>b.onclick=()=>downloadFichePDF(rowToReg(ALL[+b.dataset.i])));
+  document.querySelectorAll('.vbtn[data-ref]').forEach(b=>b.onclick=()=>validate(b.dataset.ref,'valider'));
+  document.querySelectorAll('.rbtn[data-ref]').forEach(b=>b.onclick=()=>{
+    const m=prompt('Motif du rejet (visible par le candidat) :','Fiche non signée ou incomplète');
+    if(m===null)return; validate(b.dataset.ref,'rejeter',m);
+  });
 }
 function countBy(key){const m={};ALL.forEach(r=>{const k=(r[key]||'—');m[k]=(m[k]||0)+1;});return m;}
 function donutSVG(segs){

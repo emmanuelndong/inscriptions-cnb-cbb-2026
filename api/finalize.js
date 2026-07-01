@@ -49,7 +49,7 @@ export default async function handler(req, res) {
 
     await sql`
       UPDATE inscriptions
-      SET signed_url = ${blob.url}, statut = 'definitive', signed_at = now()
+      SET signed_url = ${blob.url}, statut = 'soumise', signed_at = now(), motif = NULL
       WHERE UPPER(ref) = ${ref}`;
 
     res.status(200).json({ ok: true, url: blob.url });
