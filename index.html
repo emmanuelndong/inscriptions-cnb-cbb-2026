@@ -56,9 +56,9 @@
   .ribbon b{display:block;font-size:13.5px;letter-spacing:.4px}
 
   /* ---- Layout ---- */
-  .wrap{max-width:1080px;margin:0 auto;padding:22px 24px 80px;
-        display:grid;grid-template-columns:1fr 320px;gap:26px;align-items:start}
-  @media(max-width:920px){.wrap{grid-template-columns:1fr;padding-bottom:120px}}
+  .wrap{max-width:860px;margin:0 auto;padding:22px 24px 80px;
+        display:block}
+  @media(max-width:920px){.wrap{padding-bottom:120px}}
 
   /* ---- Form card ---- */
   .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
@@ -363,28 +363,6 @@
     </form>
   </main>
 
-  <!-- ================= SIDEBAR ================= -->
-  <aside class="noprint">
-    <div class="card">
-      <div class="head">
-        <h3>Inscriptions reçues</h3>
-        <span class="badge" id="count">0</span>
-      </div>
-      <div class="list" id="list"><div class="empty">Aucune inscription pour l'instant.</div></div>
-      <div class="foot">
-        <button class="btn primary" id="exportCsv" style="justify-content:center">⬇️ Exporter en CSV (Excel)</button>
-        <button class="btn ghost" id="printAll" style="justify-content:center">🖨️ Imprimer toutes les fiches</button>
-      </div>
-    </div>
-
-    <div class="card infoCard">
-      <div class="kv"><span>Camp</span><b>CNB / CBB 2026</b></div>
-      <div class="kv"><span>Lieu</span><b>Sébikotane</b></div>
-      <div class="kv"><span>Dates</span><b>4 – 11 sept. 2026</b></div>
-      <hr style="border:0;border-top:1px solid var(--line);margin:10px 0">
-      Les données restent sur cet appareil/navigateur. Exporte le CSV régulièrement pour consolider ton dossier régional.
-    </div>
-  </aside>
 </div>
 
 <!-- print target -->
@@ -439,12 +417,13 @@ async function verifyInsurance(reg){
 async function sendToSheet(reg){
   if(!SHEET_ENDPOINT) return {skipped:true};
   try{
-    await fetch(SHEET_ENDPOINT,{
+    const res=await fetch(SHEET_ENDPOINT,{
       method:'POST',
-      // même origine sur Vercel : JSON direct
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify(reg)
     });
+    let data={}; try{ data=await res.json(); }catch(e){}
+    if(!res.ok || (data && data.ok===false)) return {ok:false,error:(data&&data.error)||('HTTP '+res.status)};
     return {ok:true};
   }catch(err){
     return {ok:false,error:String(err)};
@@ -910,8 +889,6 @@ document.getElementById('resetBtn').onclick=()=>{
   window.scrollTo({top:0,behavior:'smooth'});
 };
 document.getElementById('printCurrent').onclick=()=>{ if(validate())printFiches([readForm()]); else toast('Complétez les champs requis avant l\'aperçu'); };
-document.getElementById('printAll').onclick=()=>{ if(!registrations.length){toast('Aucune fiche à imprimer');return;} printFiches(registrations); };
-document.getElementById('exportCsv').onclick=exportCsv;
 
 document.getElementById('form').addEventListener('input',e=>{
   const f=e.target.closest('.field.invalid');if(f)f.classList.remove('invalid');
@@ -949,15 +926,16 @@ document.getElementById('form').addEventListener('submit',async e=>{
     return;
   }
 
-  registrations.push(reg);
-  await store.save(registrations);render();
+  // envoi au registre central (base de données) — on confirme seulement si l'enregistrement réussit
+  toast('Enregistrement…');
+  const res=await sendToSheet(reg);
+  if(!res || res.ok!==true){
+    toast('Échec de l\u2019enregistrement. Vérifiez votre connexion et réessayez.');
+    return;
+  }
   showRecap(reg);
   document.getElementById('resetBtn').click();
   toast('Inscription enregistrée ✓');
-  // envoi au registre central (si configuré)
-  const res=await sendToSheet(reg);
-  if(res && res.ok) toast('Inscription envoyée au registre central ✓');
-  else if(res && res.error) toast('Enregistrée localement — envoi au registre à réessayer');
 });
 
 /* recap modal buttons */
@@ -968,7 +946,6 @@ document.getElementById('modalPdf').onclick=()=>{if(recapReg)downloadFichePDF(re
 /* ---------- init ---------- */
 (async()=>{
   buildStruct();addAutre();initDecoupage();initDob();
-  registrations=await store.load();render();
 })();
 </script>
 </body>
