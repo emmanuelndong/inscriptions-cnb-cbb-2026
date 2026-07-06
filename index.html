@@ -255,10 +255,6 @@
   </div>
 </header>
 
-<div class="finalize-bar noprint">
-  <span>Déjà inscrit ? Suivez votre inscription et déposez votre fiche signée ici.</span>
-  <a class="btn-finalize" href="/finaliser.html">📋 Suivre mon inscription</a>
-</div>
 
 <div class="wrap">
   <!-- ================= FORM ================= -->
@@ -855,9 +851,8 @@ function showRecap(r){
   document.getElementById('modalSub').textContent=`${r.prenoms} ${r.nom} — ${r.camp}`;
   document.getElementById('modalBody').innerHTML=buildRecap(r);
   document.getElementById('modalRef').innerHTML = r.ref ? `
-    <div class="refline">Votre référence : <b>${esc(r.ref)}</b></div>
-    <p class="refhint">Notez-la : elle figure aussi sur votre fiche. Après avoir fait signer votre fiche (chef de groupe, commissaire district, CRCA), déposez-la ici pour rendre votre inscription <b>définitive</b>.</p>
-    <a class="btn primary reflink" href="/finaliser.html?ref=${encodeURIComponent(r.ref)}">📤 Déposer ma fiche signée</a>` : '';
+    <div class="refline">Référence de votre inscription : <b>${esc(r.ref)}</b></div>
+    <p class="refhint">Conservez-la. Imprimez votre fiche, faites-la signer, et remettez-la à votre chef de groupe. La validation est ensuite gérée par votre CRCA de région.</p>` : '';
   document.getElementById('modalBg').classList.add('show');
 }
 function closeModal(){document.getElementById('modalBg').classList.remove('show');}
