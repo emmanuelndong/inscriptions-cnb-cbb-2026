@@ -890,6 +890,12 @@ document.getElementById('resetBtn').onclick=()=>{
 };
 document.getElementById('printCurrent').onclick=()=>{ if(validate())printFiches([readForm()]); else toast('Complétez les champs requis avant l\'aperçu'); };
 
+// N° d'assurance : n'autoriser que les chiffres (et espaces) à la saisie
+(function(){
+  const ai=document.querySelector('#assuranceField input');
+  if(ai) ai.addEventListener('input',()=>{ const v=ai.value.replace(/[^\d ]+/g,''); if(v!==ai.value) ai.value=v; });
+})();
+
 document.getElementById('form').addEventListener('input',e=>{
   const f=e.target.closest('.field.invalid');if(f)f.classList.remove('invalid');
   if(e.target.classList.contains('st-req')&&e.target.value.trim())e.target.classList.remove('bad');
