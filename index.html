@@ -303,7 +303,7 @@
           <div class="field"><label>N° Carte d'identité / Passeport <span class="req">*</span></label><input name="cni" required><span class="errmsg">Champ requis</span></div>
           <div class="field"><label>Date d'établissement de la pièce <span class="req">*</span></label><input type="date" name="cniDate" required><span class="errmsg">Champ requis</span></div>
           <div class="field"><label>Taille (tenue de camp) <span class="req">*</span></label><select name="taille" required><option value="">— Choisir —</option><option>S</option><option>M</option><option>L</option><option>XL</option><option>XXL</option><option>XXXL</option></select><span class="errmsg">Champ requis</span></div>
-          <div class="field" id="assuranceField"><label>N° d'assurance <span class="req">*</span></label><input name="assurance" required placeholder="Votre numéro d'assuré SDS"><span class="errmsg">Champ requis</span></div>
+          <div class="field" id="assuranceField"><label>N° d'assurance (carte) <span class="req">*</span></label><input name="assurance" required inputmode="numeric" placeholder="Numéro de votre carte d'assurance (chiffres)"><span class="errmsg">Champ requis</span></div>
           <div class="field col-2"><label>Problèmes médicaux <span class="req">*</span></label><textarea name="medical" required placeholder="Indiquez « RAS » si aucun problème médical"></textarea><span class="errmsg">Champ requis (« RAS » si néant)</span></div>
           <div class="field col-2"><label>Personne à contacter en cas d'urgence <span class="req">*</span></label><textarea name="urgence" required placeholder="Prénom & nom, lien, adresse, téléphone"></textarea><span class="errmsg">Champ requis</span></div>
         </div>
@@ -423,8 +423,8 @@ async function sendToSheet(reg){
       body:JSON.stringify(reg)
     });
     let data={}; try{ data=await res.json(); }catch(e){}
-    if(!res.ok || (data && data.ok===false)) return {ok:false,error:(data&&data.error)||('HTTP '+res.status)};
-    return {ok:true};
+    if(!res.ok || (data && data.ok===false)) return {ok:false,error:(data&&data.error)||('HTTP '+res.status),reason:(data&&data.reason)};
+    return {ok:true, replaced:!!(data&&data.replaced)};
   }catch(err){
     return {ok:false,error:String(err)};
   }
@@ -909,6 +909,16 @@ document.getElementById('form').addEventListener('submit',async e=>{
   const reg=readForm();
   reg.ref='SDS26-'+Math.random().toString(36).slice(2,8).toUpperCase();
 
+  // le n° d'assurance doit être un numéro (au moins 4 chiffres) — bloque "RAS", "pas reçu", etc.
+  if(((reg.assurance||'').replace(/\D/g,'')).length<4){
+    const af=document.getElementById('assuranceField');
+    af.classList.add('invalid');
+    af.querySelector('.errmsg').textContent="Entrez le numéro de votre carte d'assurance (chiffres). « RAS » ou « pas reçu » ne sont pas acceptés.";
+    af.scrollIntoView({behavior:'smooth',block:'center'});
+    toast("Numéro d'assurance invalide");
+    return;
+  }
+
   // vérification d'assurance (bloque si non assuré)
   const submitBtn=e.target.querySelector('[type="submit"]');
   if(submitBtn) submitBtn.disabled=true;
@@ -930,12 +940,20 @@ document.getElementById('form').addEventListener('submit',async e=>{
   toast('Enregistrement…');
   const res=await sendToSheet(reg);
   if(!res || res.ok!==true){
-    toast('Échec de l\u2019enregistrement. Vérifiez votre connexion et réessayez.');
+    if(res && res.reason==='already_validated'){
+      const af=document.getElementById('assuranceField');
+      af.classList.add('invalid');
+      af.querySelector('.errmsg').textContent = res.error || 'Vous êtes déjà inscrit et votre dossier est validé.';
+      af.scrollIntoView({behavior:'smooth',block:'center'});
+      toast('Inscription bloquée : dossier déjà validé');
+    } else {
+      toast(res && res.error ? ('Échec : '+res.error) : 'Échec de l\u2019enregistrement. Vérifiez votre connexion et réessayez.');
+    }
     return;
   }
   showRecap(reg);
   document.getElementById('resetBtn').click();
-  toast('Inscription enregistrée ✓');
+  toast(res.replaced ? 'Inscription mise à jour ✓' : 'Inscription enregistrée ✓');
 });
 
 /* recap modal buttons */

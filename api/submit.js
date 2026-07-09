@@ -9,6 +9,10 @@ const CONN =
 
 const sql = neon(CONN);
 
+// normalisation du n° d'assurance (espaces, tirets, accents, casse, zéros de tête)
+const normNum = s => (s == null ? '' : s.toString()).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+const keyOf = s => { const n = normNum(s); return /^\d+$/.test(n) ? String(Number(n)) : n; };
+
 async function ensureTable() {
   await sql`CREATE TABLE IF NOT EXISTS inscriptions (
     id SERIAL PRIMARY KEY,
@@ -44,7 +48,46 @@ export default async function handler(req, res) {
       return;
     }
 
+    // le n° d'assurance doit être un numéro (au moins 4 chiffres)
+    if (((d.assurance || '').toString().replace(/\D/g, '')).length < 4) {
+      res.status(200).json({ ok: false, reason: 'bad_insurance', error: "Numéro d'assurance invalide (chiffres attendus)." });
+      return;
+    }
+
     await ensureTable();
+
+    // --- gestion des doublons par n° d'assurance ---
+    const want = keyOf(d.assurance);
+    if (want) {
+      const existing = await sql`SELECT id, assurance, statut, ref, created_at FROM inscriptions`;
+      const matches = existing.filter(r => keyOf(r.assurance) === want);
+
+      // déjà validé (CRCA ou finale) -> on bloque, on ne touche à rien
+      if (matches.some(r => r.statut === 'validee' || r.statut === 'validee_crca')) {
+        res.status(200).json({
+          ok: false, reason: 'already_validated',
+          error: 'Vous êtes déjà inscrit et votre dossier est validé. Contactez votre commissariat pour toute modification.'
+        });
+        return;
+      }
+
+      // sinon (en attente ou rejeté) -> on remplace la plus récente par la nouvelle inscription
+      if (matches.length) {
+        matches.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+        const t = matches[0];
+        await sql`
+          UPDATE inscriptions SET
+            camp=${d.camp}, nom=${d.nom}, prenoms=${d.prenoms}, naissance=${d.naissance}, lieu_naissance=${d.lieuNaissance},
+            niveau=${d.niveau}, religion=${d.religion}, adresse=${d.adresse}, email=${d.email}, mobile=${d.mobile}, fixe=${d.fixe},
+            profession=${d.profession}, societe=${d.societe}, cni=${d.cni}, cni_date=${d.cniDate}, taille=${d.taille}, assurance=${d.assurance},
+            medical=${d.medical}, urgence=${d.urgence}, region=${d.region}, district=${d.district}, groupe=${d.groupe}, fonction=${d.fonction},
+            entree=${d.entree}, promesse=${d.promesse}, struct=${JSON.stringify(d.struct || [])}, autre=${JSON.stringify(d.autre || [])},
+            ref=${d.ref || t.ref || null}, statut='en_attente', motif=NULL, created_at=now()
+          WHERE id=${t.id}`;
+        res.status(200).json({ ok: true, id: t.id, replaced: true });
+        return;
+      }
+    }
 
     const rows = await sql`
       INSERT INTO inscriptions
