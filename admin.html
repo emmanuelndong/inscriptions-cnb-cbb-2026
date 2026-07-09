@@ -371,19 +371,27 @@ const stLabel=st=>({en_attente:'En attente',validee_crca:'Validée CRCA',validee
 
 let currentPreview=null;
 function openPreview(row){
-  const reg=rowToReg(row); currentPreview=reg;
-  const st=row.statut||'en_attente';
-  const cls=st==='validee'?'done':st==='validee_crca'?'crca':st==='rejetee'?'rej':'wait';
-  document.getElementById('pvTitle').textContent=`${reg.prenoms} ${reg.nom}`;
-  document.getElementById('pvSub').innerHTML=`${esc(reg.camp||'')} · ${esc(reg.region||'')} `+
-    `<span class="stbadge ${cls}">${stLabel(st)}</span>`+
-    (row.ref?` · Réf. ${esc(row.ref)}`:'')+
-    (row.motif?` · <span style="color:var(--danger)">Motif : ${esc(row.motif)}</span>`:'');
-  document.getElementById('previewBody').innerHTML=ficheHTML(reg);
-  document.getElementById('previewBody').scrollTop=0;
-  document.getElementById('previewModal').classList.add('show');
+  try{
+    if(!row){return;}
+    const modal=document.getElementById('previewModal');
+    if(!modal){alert('Aperçu indisponible (rechargez la page).');return;}
+    const reg=rowToReg(row); currentPreview=reg;
+    const st=row.statut||'en_attente';
+    const cls=st==='validee'?'done':st==='validee_crca'?'crca':st==='rejetee'?'rej':'wait';
+    document.getElementById('pvTitle').textContent=`${reg.prenoms||''} ${reg.nom||''}`.trim()||'Fiche';
+    document.getElementById('pvSub').innerHTML=`${esc(reg.camp||'')} · ${esc(reg.region||'')} `+
+      `<span class="stbadge ${cls}">${stLabel(st)}</span>`+
+      (row.ref?` · Réf. ${esc(row.ref)}`:'')+
+      (row.motif?` · <span style="color:var(--danger)">Motif : ${esc(row.motif)}</span>`:'');
+    let body;
+    try{ body=ficheHTML(reg); }
+    catch(e){ body='<div style="background:#fff;padding:20px;border-radius:10px">Aperçu de la fiche indisponible pour cette inscription.<br><small>'+esc(String(e))+'</small></div>'; }
+    document.getElementById('previewBody').innerHTML=body;
+    document.getElementById('previewBody').scrollTop=0;
+    modal.classList.add('show');
+  }catch(err){ alert('Erreur d\u2019aperçu : '+err); }
 }
-function closePreview(){ document.getElementById('previewModal').classList.remove('show'); }
+function closePreview(){ const m=document.getElementById('previewModal'); if(m) m.classList.remove('show'); }
 
 function statutCell(r){
   const st=r.statut||'en_attente';
