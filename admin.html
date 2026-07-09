@@ -58,6 +58,12 @@
   .stbadge.rej{background:#fdeceb;color:var(--danger);cursor:help}
   .stbadge.crca{background:#eaf1fd;color:#1f4fb4}
   .acctctx{display:inline-block;margin-right:10px;padding:2px 9px;border-radius:20px;background:rgba(255,255,255,.18);font-size:11.5px;font-weight:700;vertical-align:middle}
+  .dupbadge{display:inline-block;font-size:10.5px;font-weight:700;color:var(--danger);background:#fdeceb;border:1px solid #f0c8c3;border-radius:20px;padding:1px 8px;margin-left:4px;white-space:nowrap;cursor:help;vertical-align:middle}
+  .duprow{background:#fff8f7}
+  .duprow:hover{background:#fdeceb}
+  .dupchk{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--danger);white-space:nowrap;cursor:pointer;padding-top:2px}
+  .dupchk input{width:auto}
+  .stat.dupstat b{color:var(--danger)}
   .sfile{margin-left:2px;text-decoration:none;font-size:13px}
   .stwrap{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
   .mini{border:1px solid var(--line);background:#fff;border-radius:7px;padding:3px 9px;font:inherit;font-size:11.5px;font-weight:600;cursor:pointer;white-space:nowrap}
@@ -162,6 +168,7 @@
     <div class="f"><label>Région</label><select id="fRegion"><option value="">Toutes</option></select></div>
     <div class="f"><label>District</label><select id="fDistrict"><option value="">Tous</option></select></div>
     <div class="f"><label>Statut</label><select id="fStatut"><option value="">Tous</option><option value="en_attente">En attente</option><option value="validee_crca">Validées CRCA</option><option value="validee">Validées finales</option><option value="rejetee">Rejetées</option></select></div>
+    <div class="f"><label>&nbsp;</label><label class="dupchk"><input type="checkbox" id="fDup"> ⚠ Doublons uniquement</label></div>
     <div class="f"><label>Recherche</label><input id="fSearch" placeholder="Nom, prénom, groupe…"></div>
     <div class="actions">
       <button class="btn ghost" id="refreshBtn">↻ Actualiser</button>
@@ -317,6 +324,24 @@ const rowToReg=r=>({
 });
 const campColor=c=>({'CNB Jaune':'#E0A52B','CNB Vert':'#1F7A44','CNB Rouge':'#B42318','CBB':'#4A2370'}[c]||'#b3adbf');
 
+// --- détection des doublons ---
+const normTxt=s=>(s==null?'':s.toString()).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/['’`´]/g,'').replace(/\s+/g,' ').trim();
+const normNum2=s=>normTxt(s).replace(/\s/g,'');
+function dupKey(r){ const a=normNum2(r.assurance); return a?('A:'+a):('N:'+normTxt(r.nom)+'|'+normTxt(r.prenoms)+'|'+normTxt(r.naissance)); }
+let DUP=new Set(), DUPINFO={};
+function computeDups(){
+  const m={}; DUP=new Set(); DUPINFO={};
+  ALL.forEach(r=>{ const k=dupKey(r); (m[k]=m[k]||[]).push(r); });
+  Object.entries(m).forEach(([k,list])=>{ if(list.length>1){ DUP.add(k); DUPINFO[k]=list; } });
+}
+const stLabel=st=>({en_attente:'En attente',validee_crca:'Validée CRCA',validee:'Validée finale',rejetee:'Rejetée'}[st]||'En attente');
+function dupBadge(dk){
+  const list=DUPINFO[dk]||[];
+  const others=list.map(x=>`• ${x.prenoms} ${x.nom} [${x.ref||'—'}] — ${stLabel(x.statut)}`).join('\n');
+  const by = (dk[0]==='A') ? 'même n° d\u2019assurance' : 'mêmes nom, prénoms et date de naissance';
+  return `<span class="dupbadge" title="${esc(list.length+' inscriptions avec '+by+' :\n'+others)}">⚠ ${list.length} doublons</span>`;
+}
+
 function statutCell(r){
   const st=r.statut||'en_attente';
   let badge;
@@ -359,6 +384,7 @@ async function load(){
     if(res.status===401){ logout(); document.getElementById('loginErr').style.display='block'; return; }
     const data=await res.json();
     ALL=data.rows||[];
+    computeDups();
     if(data.role) ROLE=data.role;
     if(data.region!==undefined && data.region!==null) REGION=data.region;
     document.getElementById('loginView').style.display='none';
@@ -389,9 +415,11 @@ function buildFilters(){
 function filtered(){
   const c=document.getElementById('fCamp').value, rg=document.getElementById('fRegion').value,
         d=document.getElementById('fDistrict').value, st=document.getElementById('fStatut').value,
+        dup=document.getElementById('fDup').checked,
         q=document.getElementById('fSearch').value.toLowerCase().trim();
   return ALL.filter(r=>(!c||r.camp===c)&&(!rg||r.region===rg)&&(!d||r.district===d)&&
     (!st||(r.statut||'en_attente')===st)&&
+    (!dup||DUP.has(dupKey(r)))&&
     (!q||[r.nom,r.prenoms,r.groupe,r.mobile,r.email,r.ref].some(v=>(v||'').toLowerCase().includes(q))));
 }
 function render(){
@@ -400,26 +428,28 @@ function render(){
   const nFinal=ALL.filter(r=>r.statut==='validee').length;
   const nCrca=ALL.filter(r=>r.statut==='validee_crca').length;
   const nWait=ALL.filter(r=>!r.statut||r.statut==='en_attente').length;
+  const nDup=ALL.filter(r=>DUP.has(dupKey(r))).length;
   document.getElementById('stats').innerHTML=
     `<div class="stat"><b>${ALL.length}</b><span>inscriptions${ROLE==='crca'?' (ma région)':''}</span></div>`+
     `<div class="stat"><b>${nWait}</b><span>en attente</span></div>`+
     `<div class="stat"><b>${nCrca}</b><span>validées CRCA</span></div>`+
     `<div class="stat"><b>${nFinal}</b><span>validées finales</span></div>`+
     `<div class="stat"><b>${rows.length}</b><span>affichées (filtre)</span></div>`+
+    (nDup?`<div class="stat dupstat"><b>${nDup}</b><span>⚠ doublons</span></div>`:'')+
     ['CNB Jaune','CNB Vert','CNB Rouge','CBB'].map(c=>`<div class="stat"><b>${byCamp(c)}</b><span>${c}</span></div>`).join('');
   if(!rows.length){document.getElementById('tableWrap').innerHTML='<div class="empty">Aucune inscription.</div>';return;}
   document.getElementById('tableWrap').innerHTML=`<table><thead><tr>
     <th>Date</th><th>Camp</th><th>Nom & prénoms</th><th>Région</th><th>District</th><th>Groupe</th><th>Taille</th><th>Statut</th><th>Mobile</th><th></th>
-    </tr></thead><tbody>${rows.map((r,i)=>`<tr>
+    </tr></thead><tbody>${rows.map((r,i)=>{const dk=dupKey(r);const isDup=DUP.has(dk);return `<tr class="${isDup?'duprow':''}">
       <td class="muted">${fmtDate(r.created_at)}</td>
       <td><span class="dot" style="background:${campColor(r.camp)}"></span>${esc(r.camp)}</td>
-      <td><b>${esc(r.prenoms)} ${esc(r.nom)}</b></td>
+      <td><b>${esc(r.prenoms)} ${esc(r.nom)}</b>${isDup?' '+dupBadge(dk):''}</td>
       <td>${esc(r.region)}</td><td>${esc(r.district)}</td><td>${esc(r.groupe)}</td>
       <td><b>${esc(r.taille)||'—'}</b></td>
       <td>${statutCell(r)}</td>
       <td class="muted">${esc(r.mobile)}</td>
       <td><button class="tbtn" data-i="${ALL.indexOf(r)}" title="Télécharger la fiche en PDF">⬇️ PDF</button></td>
-    </tr>`).join('')}</tbody></table>`;
+    </tr>`;}).join('')}</tbody></table>`;
   document.querySelectorAll('.tbtn[data-i]').forEach(b=>b.onclick=()=>downloadFichePDF(rowToReg(ALL[+b.dataset.i])));
   document.querySelectorAll('.vcBtn[data-ref]').forEach(b=>b.onclick=()=>validate(b.dataset.ref,'valider_crca'));
   document.querySelectorAll('.vfBtn[data-ref]').forEach(b=>b.onclick=()=>validate(b.dataset.ref,'valider_final'));
@@ -513,6 +543,7 @@ document.getElementById('loginBtn').onclick=async()=>{
 };
 document.getElementById('pwd').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('loginBtn').click();});
 ['fCamp','fRegion','fDistrict','fStatut'].forEach(id=>document.getElementById(id).addEventListener('change',render));
+document.getElementById('fDup').addEventListener('change',render);
 document.getElementById('fSearch').addEventListener('input',render);
 document.getElementById('refreshBtn').onclick=load;
 document.getElementById('clearBtn').onclick=async()=>{
