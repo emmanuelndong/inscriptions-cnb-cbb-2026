@@ -64,6 +64,7 @@
   .dupchk{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--danger);white-space:nowrap;cursor:pointer;padding-top:2px}
   .dupchk input{width:auto}
   .stat.dupstat b{color:var(--danger)}
+  td.assur{font-variant-numeric:tabular-nums;white-space:nowrap;color:#433c52}
   .namelink{cursor:pointer;color:inherit;text-decoration:none;border-bottom:1px dashed transparent}
   .namelink:hover{color:var(--violet);border-bottom-color:var(--violet)}
   .pvbg{position:fixed;inset:0;background:rgba(36,31,46,.55);display:none;z-index:60;align-items:flex-start;justify-content:center;padding:24px;overflow:auto}
@@ -180,7 +181,7 @@
     <div class="f"><label>District</label><select id="fDistrict"><option value="">Tous</option></select></div>
     <div class="f"><label>Statut</label><select id="fStatut"><option value="">Tous</option><option value="en_attente">En attente</option><option value="validee_crca">Validées CRCA</option><option value="validee">Validées finales</option><option value="rejetee">Rejetées</option></select></div>
     <div class="f"><label>&nbsp;</label><label class="dupchk"><input type="checkbox" id="fDup"> ⚠ Doublons uniquement</label></div>
-    <div class="f"><label>Recherche</label><input id="fSearch" placeholder="Nom, prénom, groupe…"></div>
+    <div class="f"><label>Recherche</label><input id="fSearch" placeholder="Nom, prénom, groupe, n° assurance, référence…"></div>
     <div class="actions">
       <button class="btn ghost" id="refreshBtn">↻ Actualiser</button>
       <button class="btn ghost" id="csvBtn">⬇️ CSV</button>
@@ -468,10 +469,12 @@ function filtered(){
         d=document.getElementById('fDistrict').value, st=document.getElementById('fStatut').value,
         dup=document.getElementById('fDup').checked,
         q=document.getElementById('fSearch').value.toLowerCase().trim();
+  const qd=q.replace(/\D/g,''); // recherche numérique (n° assurance, mobile) sans espaces
   return ALL.filter(r=>(!c||r.camp===c)&&(!rg||r.region===rg)&&(!d||r.district===d)&&
     (!st||(r.statut||'en_attente')===st)&&
     (!dup||DUP.has(dupKey(r)))&&
-    (!q||[r.nom,r.prenoms,r.groupe,r.mobile,r.email,r.ref].some(v=>(v||'').toLowerCase().includes(q))));
+    (!q||[r.nom,r.prenoms,r.groupe,r.mobile,r.email,r.ref,r.assurance].some(v=>(v||'').toLowerCase().includes(q))
+       ||(qd.length>=2&&[r.assurance,r.mobile,r.cni].some(v=>((v||'').replace(/\D/g,'')).includes(qd)))));
 }
 function render(){
   const rows=filtered();
@@ -490,11 +493,12 @@ function render(){
     ['CNB Jaune','CNB Vert','CNB Rouge','CBB'].map(c=>`<div class="stat"><b>${byCamp(c)}</b><span>${c}</span></div>`).join('');
   if(!rows.length){document.getElementById('tableWrap').innerHTML='<div class="empty">Aucune inscription.</div>';return;}
   document.getElementById('tableWrap').innerHTML=`<table><thead><tr>
-    <th>Date</th><th>Camp</th><th>Nom & prénoms</th><th>Région</th><th>District</th><th>Groupe</th><th>Taille</th><th>Statut</th><th>Mobile</th><th></th>
+    <th>Date</th><th>Camp</th><th>Nom & prénoms</th><th>N° assurance</th><th>Région</th><th>District</th><th>Groupe</th><th>Taille</th><th>Statut</th><th>Mobile</th><th></th>
     </tr></thead><tbody>${rows.map((r,i)=>{const dk=dupKey(r);const isDup=DUP.has(dk);return `<tr class="${isDup?'duprow':''}">
       <td class="muted">${fmtDate(r.created_at)}</td>
       <td><span class="dot" style="background:${campColor(r.camp)}"></span>${esc(r.camp)}</td>
       <td><a class="namelink" data-i="${ALL.indexOf(r)}" title="Voir l'aperçu de la fiche"><b>${esc(r.prenoms)} ${esc(r.nom)}</b></a>${isDup?' '+dupBadge(dk):''}</td>
+      <td class="assur">${esc(r.assurance)||'—'}</td>
       <td>${esc(r.region)}</td><td>${esc(r.district)}</td><td>${esc(r.groupe)}</td>
       <td><b>${esc(r.taille)||'—'}</b></td>
       <td>${statutCell(r)}</td>
