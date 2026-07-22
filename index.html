@@ -59,10 +59,19 @@
   .wrap{max-width:860px;margin:0 auto;padding:22px 24px 80px;
         display:block}
   @media(max-width:920px){.wrap{padding-bottom:120px}}
-  .deadline-bar{max-width:860px;margin:14px auto 0;padding:10px 24px;text-align:center;font-size:13.5px;color:var(--purple)}
-  .deadline-bar b{font-variant-numeric:tabular-nums;background:var(--violet-soft);padding:2px 8px;border-radius:8px}
-  .deadline-bar.closed{color:var(--danger);font-weight:600}
+  .deadline-bar{max-width:860px;margin:16px auto 0;padding:0 24px}
   .deadline-bar:empty{display:none}
+  .cd-card{background:linear-gradient(135deg,var(--purple),var(--violet));color:#fff;border-radius:16px;padding:16px 18px;text-align:center;box-shadow:0 12px 30px rgba(74,35,112,.22)}
+  .cd-title{font-size:14px;font-weight:600;letter-spacing:.3px;margin-bottom:12px;opacity:.95}
+  .cd-title b{font-family:Marcellus,serif;font-weight:400}
+  .cd-boxes{display:flex;gap:10px;justify-content:center}
+  .cd-box{background:rgba(255,255,255,.14);border-radius:12px;padding:10px 6px;min-width:74px;flex:0 1 90px}
+  .cd-box b{display:block;font-size:32px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+  .cd-box span{display:block;font-size:11px;opacity:.85;margin-top:5px;text-transform:uppercase;letter-spacing:.5px}
+  .cd-card.urgent{background:linear-gradient(135deg,#8a1c14,var(--danger))}
+  .cd-card.closed{background:linear-gradient(135deg,#5a5560,#3a3540)}
+  .cd-closed{font-size:16px;font-weight:600;padding:6px 0}
+  @media(max-width:520px){.cd-box{min-width:0;padding:8px 2px}.cd-box b{font-size:26px}}
   .closed-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:44px 28px;text-align:center;box-shadow:0 10px 30px rgba(74,35,112,.08);margin-top:10px}
   .closed-card .lock{font-size:46px;margin-bottom:8px}
   .closed-card h2{font-family:Marcellus,serif;font-weight:400;color:var(--purple);font-size:24px;margin:0 0 10px}
@@ -1001,9 +1010,21 @@ function closeForm(){
 function tickDeadline(){
   const bar=document.getElementById('deadlineBar'); if(!bar) return;
   const diff=DEADLINE.getTime()-Date.now();
-  if(diff<=0){ bar.className='deadline-bar noprint closed'; bar.innerHTML='🔒 Les inscriptions sont closes (depuis le 1ᵉʳ août 2026).'; closeForm(); return; }
+  if(diff<=0){
+    bar.innerHTML='<div class="cd-card closed"><div class="cd-closed">🔒 Les inscriptions sont closes (depuis le 1ᵉʳ août 2026)</div></div>';
+    closeForm(); return;
+  }
+  const p=n=>String(n).padStart(2,'0');
   const d=Math.floor(diff/86400000),h=Math.floor(diff%86400000/3600000),m=Math.floor(diff%3600000/60000),s=Math.floor(diff%60000/1000);
-  bar.innerHTML=`⏳ Clôture des inscriptions le 31 juillet 2026 — il reste <b>${d}j ${h}h ${m}m ${s}s</b>`;
+  const urgent=diff<=3*86400000; // moins de 3 jours -> rouge
+  bar.innerHTML=`<div class="cd-card${urgent?' urgent':''}">
+    <div class="cd-title">⏳ Clôture des inscriptions — <b>31 juillet 2026</b></div>
+    <div class="cd-boxes">
+      <div class="cd-box"><b>${d}</b><span>jours</span></div>
+      <div class="cd-box"><b>${p(h)}</b><span>heures</span></div>
+      <div class="cd-box"><b>${p(m)}</b><span>min</span></div>
+      <div class="cd-box"><b>${p(s)}</b><span>sec</span></div>
+    </div></div>`;
 }
 tickDeadline(); setInterval(tickDeadline,1000);
 </script>
