@@ -59,6 +59,15 @@
   .wrap{max-width:860px;margin:0 auto;padding:22px 24px 80px;
         display:block}
   @media(max-width:920px){.wrap{padding-bottom:120px}}
+  .deadline-bar{max-width:860px;margin:14px auto 0;padding:10px 24px;text-align:center;font-size:13.5px;color:var(--purple)}
+  .deadline-bar b{font-variant-numeric:tabular-nums;background:var(--violet-soft);padding:2px 8px;border-radius:8px}
+  .deadline-bar.closed{color:var(--danger);font-weight:600}
+  .deadline-bar:empty{display:none}
+  .closed-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:44px 28px;text-align:center;box-shadow:0 10px 30px rgba(74,35,112,.08);margin-top:10px}
+  .closed-card .lock{font-size:46px;margin-bottom:8px}
+  .closed-card h2{font-family:Marcellus,serif;font-weight:400;color:var(--purple);font-size:24px;margin:0 0 10px}
+  .closed-card p{color:#433c52;margin:6px 0;font-size:14.5px}
+  .closed-card p.muted{color:var(--muted);font-size:13px}
 
   /* ---- Form card ---- */
   .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
@@ -255,8 +264,16 @@
   </div>
 </header>
 
+<div class="deadline-bar noprint" id="deadlineBar"></div>
 
 <div class="wrap">
+  <div id="closedMsg" class="closed-card" style="display:none">
+    <div class="lock">🔒</div>
+    <h2>Inscriptions closes</h2>
+    <p>La date limite d'inscription (<b>31 juillet 2026</b>) est dépassée. Le formulaire n'est plus disponible.</p>
+    <p class="muted">Pour toute question, rapprochez-vous de votre commissariat.</p>
+  </div>
+
   <!-- ================= FORM ================= -->
   <main class="panel noprint">
     <form id="form" novalidate>
@@ -910,6 +927,7 @@ document.getElementById('form').addEventListener('input',e=>{
 });
 document.getElementById('form').addEventListener('submit',async e=>{
   e.preventDefault();
+  if(isClosed()){ closeForm(); toast('Les inscriptions sont closes.'); return; }
   if(!validate()){toast('Veuillez corriger les champs en rouge');
     document.querySelector('.invalid, .st-req.bad')?.scrollIntoView({behavior:'smooth',block:'center'});return;}
   const reg=readForm();
@@ -946,6 +964,7 @@ document.getElementById('form').addEventListener('submit',async e=>{
   toast('Enregistrement…');
   const res=await sendToSheet(reg);
   if(!res || res.ok!==true){
+    if(res && res.reason==='closed'){ closeForm(); toast('Les inscriptions sont closes.'); return; }
     if(res && res.reason==='already_validated'){
       const af=document.getElementById('assuranceField');
       af.classList.add('invalid');
@@ -971,6 +990,22 @@ document.getElementById('modalPdf').onclick=()=>{if(recapReg)downloadFichePDF(re
 (async()=>{
   buildStruct();addAutre();initDecoupage();initDob();
 })();
+
+// ---- clôture des inscriptions ----
+const DEADLINE=new Date('2026-08-01T00:00:00Z'); // 1ᵉʳ août 2026, 00:00 (heure du Sénégal, UTC+0)
+function isClosed(){ return Date.now()>=DEADLINE.getTime(); }
+function closeForm(){
+  const p=document.querySelector('.panel'); if(p) p.style.display='none';
+  const c=document.getElementById('closedMsg'); if(c) c.style.display='block';
+}
+function tickDeadline(){
+  const bar=document.getElementById('deadlineBar'); if(!bar) return;
+  const diff=DEADLINE.getTime()-Date.now();
+  if(diff<=0){ bar.className='deadline-bar noprint closed'; bar.innerHTML='🔒 Les inscriptions sont closes (depuis le 1ᵉʳ août 2026).'; closeForm(); return; }
+  const d=Math.floor(diff/86400000),h=Math.floor(diff%86400000/3600000),m=Math.floor(diff%3600000/60000),s=Math.floor(diff%60000/1000);
+  bar.innerHTML=`⏳ Clôture des inscriptions le 31 juillet 2026 — il reste <b>${d}j ${h}h ${m}m ${s}s</b>`;
+}
+tickDeadline(); setInterval(tickDeadline,1000);
 </script>
 </body>
 </html>

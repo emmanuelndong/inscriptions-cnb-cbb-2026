@@ -9,6 +9,9 @@ const CONN =
 
 const sql = neon(CONN);
 
+// clôture des inscriptions : 1er août 2026 00:00 (heure du Sénégal, UTC+0)
+const DEADLINE = Date.parse('2026-08-01T00:00:00Z');
+
 // normalisation du n° d'assurance (espaces, tirets, accents, casse, zéros de tête)
 const normNum = s => (s == null ? '' : s.toString()).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 const keyOf = s => { const n = normNum(s); return /^\d+$/.test(n) ? String(Number(n)) : n; };
@@ -45,6 +48,12 @@ export default async function handler(req, res) {
     if (typeof d === 'string') d = JSON.parse(d);
     if (!d || typeof d !== 'object') {
       res.status(400).json({ ok: false, error: 'Données invalides' });
+      return;
+    }
+
+    // inscriptions closes après la date limite
+    if (Date.now() >= DEADLINE) {
+      res.status(200).json({ ok: false, reason: 'closed', error: 'Les inscriptions sont closes depuis le 1er août 2026.' });
       return;
     }
 
