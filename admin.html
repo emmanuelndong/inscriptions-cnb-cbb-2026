@@ -493,7 +493,7 @@ function render(){
     ['CNB Jaune','CNB Vert','CNB Rouge','CBB'].map(c=>`<div class="stat"><b>${byCamp(c)}</b><span>${c}</span></div>`).join('');
   if(!rows.length){document.getElementById('tableWrap').innerHTML='<div class="empty">Aucune inscription.</div>';return;}
   document.getElementById('tableWrap').innerHTML=`<table><thead><tr>
-    <th>Date</th><th>Camp</th><th>Nom & prénoms</th><th>N° assurance</th><th>Région</th><th>District</th><th>Groupe</th><th>Taille</th><th>Statut</th><th>Mobile</th><th></th>
+    <th>Date</th><th>Camp</th><th>Nom & prénoms</th><th>N° assurance</th><th>Région</th><th>District</th><th>Groupe</th><th>Taille</th><th>Statut</th><th></th>
     </tr></thead><tbody>${rows.map((r,i)=>{const dk=dupKey(r);const isDup=DUP.has(dk);return `<tr class="${isDup?'duprow':''}">
       <td class="muted">${fmtDate(r.created_at)}</td>
       <td><span class="dot" style="background:${campColor(r.camp)}"></span>${esc(r.camp)}</td>
@@ -502,7 +502,6 @@ function render(){
       <td>${esc(r.region)}</td><td>${esc(r.district)}</td><td>${esc(r.groupe)}</td>
       <td><b>${esc(r.taille)||'—'}</b></td>
       <td>${statutCell(r)}</td>
-      <td class="muted">${esc(r.mobile)}</td>
       <td><button class="tbtn" data-i="${ALL.indexOf(r)}" title="Télécharger la fiche en PDF">⬇️ PDF</button></td>
     </tr>`;}).join('')}</tbody></table>`;
   document.querySelectorAll('.tbtn[data-i]').forEach(b=>b.onclick=()=>downloadFichePDF(rowToReg(ALL[+b.dataset.i])));
